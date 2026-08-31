@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  academic-screenx:
+    build: .
+    container_name: academic-screenx-app
+    ports:
+      - "8000:8000"
+    environment:
+      - USE_MOCK_LLM=True
+      - SECRET_KEY=academic-screenx-super-secure-secret-key-2026
+      - DATABASE_URL=sqlite:////app/academic_screenx.db
+    volumes:
+      - ./uploads:/app/uploads
+      - ./data:/app/data
+    restart: unless-stopped

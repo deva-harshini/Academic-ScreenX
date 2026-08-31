@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}{{ sub.title }} • Evaluation Report{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-5">
+    <div class="flex items-center justify-between">
+        <a href="/dashboard" class="px-3.5 py-2 rounded-lg bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 transition border border-slate-200 shadow-sm flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            <span>Back to Dashboard</span>
+        </a>
+        <button onclick="window.print()" class="px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-xs font-semibold transition shadow-sm flex items-center gap-1.5">
+            <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+            </svg>
+            <span>Print Official Dossier</span>
+        </button>
+    </div>
+
+    <!-- Dossier Container -->
+    <div class="bento-card p-8 border-slate-200 bg-white space-y-6 shadow-card">
+        <!-- Header -->
+        <div class="border-b border-slate-200 pb-6 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                        Dossier #{{ sub.id }}
+                    </span>
+                    <span class="text-xs text-slate-400 font-mono">{{ sub.processing_time_seconds }}s evaluation time</span>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-900 tracking-tight">{{ sub.title }}</h1>
+                <p class="text-xs text-slate-600">
+                    Applicant: <strong class="text-slate-800">{{ sub.student_name or 'Anonymous Applicant' }}</strong> • 
+                    <span class="font-mono text-slate-500">{{ sub.pdf_filename }}</span> ({{ sub.file_size_kb }} KB)
+                </p>
+            </div>
+            <div>
+                {% if sub.status == 'approved' %}
+                <span class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm inline-block">
+                    ✓ Approved for Faculty
+                </span>
+                {% elif sub.status == 'revision' %}
+                <span class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-sm inline-block">
+                    ⚠ Needs Revision
+                </span>
+                {% elif sub.status == 'flagged' %}
+                <span class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-sm inline-block">
+                    ✗ Flagged for Low Novelty
+                </span>
+                {% else %}
+                <span class="px-3.5 py-1.5 rounded-full text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 inline-block">
+                    {{ sub.status | upper }}
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- 3-Sentence Executive Summary Review -->
+        <div class="p-5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Stage 3 Executive Review</span>
+            <p class="text-xs text-slate-800 leading-relaxed font-medium italic">
+                "{{ sub.summary or 'Summary not available.' }}"
+            </p>
+        </div>
+
+        <!-- Metric Tiles -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="p-4 rounded-xl bg-white border border-slate-200 text-center shadow-sm">
+                <span class="text-[10px] uppercase font-bold text-slate-500 block">Overall Score</span>
+                <span class="text-2xl font-black text-slate-900 mt-1 block">{{ sub.overall_score }} <span class="text-xs text-slate-400 font-normal">/ 10</span></span>
+            </div>
+            <div class="p-4 rounded-xl bg-white border border-slate-200 text-center shadow-sm">
+                <span class="text-[10px] uppercase font-bold text-slate-500 block">Compliance</span>
+                <span class="text-2xl font-bold text-slate-800 mt-1 block">{{ sub.compliance_score }} <span class="text-xs text-slate-400 font-normal">/ 10</span></span>
+            </div>
+            <div class="p-4 rounded-xl bg-white border border-slate-200 text-center shadow-sm">
+                <span class="text-[10px] uppercase font-bold text-slate-500 block">Novelty</span>
+                <span class="text-2xl font-bold text-slate-800 mt-1 block">{{ sub.novelty_score }} <span class="text-xs text-slate-400 font-normal">/ 10</span></span>
+            </div>
+            <div class="p-4 rounded-xl bg-white border border-slate-200 text-center shadow-sm">
+                <span class="text-[10px] uppercase font-bold text-slate-500 block">Word Count</span>
+                <span class="text-2xl font-bold text-slate-800 mt-1 block">{{ sub.word_count }} <span class="text-xs text-slate-400 font-normal">words</span></span>
+            </div>
+        </div>
+
+        <!-- Detailed Breakdown -->
+        <div class="space-y-4 text-xs">
+            <div class="p-5 rounded-xl bg-white border border-slate-200 space-y-2 shadow-sm">
+                <span class="font-bold text-slate-900 text-sm block">Stage 1: Compliance & Structural Auditor</span>
+                <p class="text-slate-600 leading-relaxed">{{ sub.compliance_feedback }}</p>
+            </div>
+
+            <div class="p-5 rounded-xl bg-white border border-slate-200 space-y-2.5 shadow-sm">
+                <span class="font-bold text-slate-900 text-sm block">Stage 2: Methodology & Literature Search</span>
+                <p><span class="text-slate-500 font-semibold">Verdict:</span> <span class="text-slate-900 font-bold">{{ sub.novelty_verdict }}</span></p>
+                {% if sub.extracted_methodology %}
+                <div class="p-3.5 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[11px] text-slate-700 leading-relaxed">
+                    {{ sub.extracted_methodology }}
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="p-5 rounded-xl bg-white border border-slate-200 space-y-2.5 shadow-sm">
+                <span class="font-bold text-slate-900 text-sm block">Stage 3: Technical Feasibility & Peer Review</span>
+                <p><span class="text-slate-500 font-semibold">Dataset Feasibility:</span> <span class="text-slate-900 font-bold">{{ sub.dataset_feasibility }}</span> — <span class="text-slate-600">{{ sub.dataset_analysis }}</span></p>
+                <div class="flex items-center gap-4 text-slate-700 pt-1">
+                    <div>Technical Depth: <strong class="text-slate-900">{{ sub.technical_depth_score }}/10</strong></div>
+                    <div>•</div>
+                    <div>Methodology Rigor: <strong class="text-slate-900">{{ sub.methodology_rigor_score }}/10</strong></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

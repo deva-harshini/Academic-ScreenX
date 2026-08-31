@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}Faculty Dashboard • Academic-ScreenX{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Top Banner & Quick Actions -->
+    <div class="bento-card p-6 border-slate-200">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div class="space-y-1.5 max-w-2xl">
+                <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                        Autonomous Screening Funnel
+                    </span>
+                    <span class="text-xs text-slate-400">• Fall 2026 Academic Term</span>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-900 tracking-tight">
+                    Faculty Proposal Review & Triage
+                </h1>
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    Upload student project proposals (PDFs) to automatically audit formatting compliance, assess methodological novelty against indexed literature, and receive technical peer-review scoring with 3-sentence reviews.
+                </p>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button id="btn-load-demo" onclick="loadDemoSamples()" class="px-4 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-white shadow-sm transition flex items-center gap-2">
+                    <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+                    </svg>
+                    <span>Load 3 Sample Papers</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 3-Stage Visual Pipeline Bar -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 pt-5 mt-5 border-t border-slate-200">
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-start gap-3">
+                <div class="w-6 h-6 rounded-md bg-white border border-slate-300 flex items-center justify-center font-bold text-xs text-slate-700 shadow-sm shrink-0">
+                    1
+                </div>
+                <div>
+                    <div class="text-xs font-semibold text-slate-900">Stage 1: Compliance Auditor</div>
+                    <div class="text-[11px] text-slate-500">250–500 words & mandatory section check</div>
+                </div>
+            </div>
+
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-start gap-3">
+                <div class="w-6 h-6 rounded-md bg-white border border-slate-300 flex items-center justify-center font-bold text-xs text-slate-700 shadow-sm shrink-0">
+                    2
+                </div>
+                <div>
+                    <div class="text-xs font-semibold text-slate-900">Stage 2: Novelty Assessor</div>
+                    <div class="text-[11px] text-slate-500">Literature & duplicate topic detection</div>
+                </div>
+            </div>
+
+            <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 flex items-start gap-3">
+                <div class="w-6 h-6 rounded-md bg-white border border-slate-300 flex items-center justify-center font-bold text-xs text-slate-700 shadow-sm shrink-0">
+                    3
+                </div>
+                <div>
+                    <div class="text-xs font-semibold text-slate-900">Stage 3: Technical Critic</div>
+                    <div class="text-[11px] text-slate-500">Composite score (1–10) & 3-sentence review</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5 Top Stat Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <!-- 1. Total Submissions -->
+        <div class="bento-card p-4">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Uploaded</span>
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+            </div>
+            <div class="mt-2">
+                <span id="stat-total" class="text-2xl font-bold text-slate-900">0</span>
+                <span class="text-[11px] text-slate-500 block mt-0.5">Abstracts processed</span>
+            </div>
+        </div>
+
+        <!-- 2. Approved % -->
+        <div class="bento-card p-4">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-emerald-700 uppercase tracking-wider">Approved %</span>
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-1.5">
+                <span id="stat-approved-pct" class="text-2xl font-bold text-emerald-600">0%</span>
+                <span id="stat-approved-count" class="text-[11px] text-slate-500">(0 papers)</span>
+            </div>
+        </div>
+
+        <!-- 3. Needs Revision -->
+        <div class="bento-card p-4">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">Needs Revision</span>
+                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-1.5">
+                <span id="stat-revision-count" class="text-2xl font-bold text-amber-600">0</span>
+                <span class="text-[11px] text-slate-500">format defects</span>
+            </div>
+        </div>
+
+        <!-- 4. Flagged (Low Novelty) % -->
+        <div class="bento-card p-4">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-rose-700 uppercase tracking-wider">Flagged %</span>
+                <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-1.5">
+                <span id="stat-flagged-pct" class="text-2xl font-bold text-rose-600">0%</span>
+                <span id="stat-flagged-count" class="text-[11px] text-slate-500">(0 papers)</span>
+            </div>
+        </div>
+
+        <!-- 5. Avg Latency & Score -->
+        <div class="bento-card p-4 col-span-2 sm:col-span-1">
+            <div class="flex items-center justify-between">
+                <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Avg Processing</span>
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+            </div>
+            <div class="mt-2">
+                <span id="stat-avg-time" class="text-2xl font-bold text-slate-900">0.0s</span>
+                <span class="text-[11px] text-slate-500 block mt-0.5">Per PDF pipeline execution</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Batch Upload Dropzone -->
+    <div class="bento-card p-5">
+        <div id="dropzone" class="border-2 border-dashed border-slate-300 hover:border-slate-400 rounded-xl p-6 text-center transition cursor-pointer bg-slate-50/50 hover:bg-slate-50" onclick="document.getElementById('file-input').click()">
+            <input type="file" id="file-input" class="hidden" accept=".pdf" multiple>
+            
+            <div class="flex flex-col items-center justify-center gap-2">
+                <div class="w-10 h-10 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-600">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                </div>
+                <div class="text-xs text-slate-800 font-semibold">
+                    Drag and drop student proposal PDFs here, or <span class="text-slate-900 underline underline-offset-4">browse files</span>
+                </div>
+                <p class="text-[11px] text-slate-500">Supports single and multi-file batch uploads • Standard PDF format</p>
+            </div>
+            
+            <div id="upload-status" class="hidden mt-3 text-xs font-semibold text-slate-700 pulse-subtle bg-white px-3 py-1.5 rounded-lg border border-slate-200 inline-block shadow-sm">
+                Evaluating proposal batch with Multi-Agent Funnel...
+            </div>
+        </div>
+    </div>
+
+    <!-- Submissions Data Table Container -->
+    <div class="bento-card overflow-hidden">
+        
+        <!-- Controls Bar -->
+        <div class="p-4 border-b border-slate-200 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            
+            <!-- Status Filter Tabs -->
+            <div class="flex items-center gap-1 p-1 rounded-lg bg-slate-100 border border-slate-200 text-xs">
+                <button onclick="setFilter('all')" data-status="all" class="filter-btn px-3 py-1.5 rounded-md font-semibold transition bg-white text-slate-900 shadow-sm">
+                    All Submissions
+                </button>
+                <button onclick="setFilter('approved')" data-status="approved" class="filter-btn px-3 py-1.5 rounded-md font-medium transition text-slate-600 hover:text-slate-900">
+                    Approved
+                </button>
+                <button onclick="setFilter('revision')" data-status="revision" class="filter-btn px-3 py-1.5 rounded-md font-medium transition text-slate-600 hover:text-slate-900">
+                    Needs Revision
+                </button>
+                <button onclick="setFilter('flagged')" data-status="flagged" class="filter-btn px-3 py-1.5 rounded-md font-medium transition text-slate-600 hover:text-slate-900">
+                    Flagged
+                </button>
+            </div>
+
+            <!-- Search & Sort Controls -->
+            <div class="flex items-center gap-2">
+                <div class="relative">
+                    <input type="text" id="search-input" placeholder="Search by title, student..." class="bg-white border border-slate-200 focus:border-slate-400 text-slate-800 text-xs rounded-lg pl-8 pr-3 py-2 focus:outline-none transition w-48 sm:w-64 shadow-sm">
+                    <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </div>
+                
+                <select id="sort-select" class="bg-white border border-slate-200 text-slate-700 text-xs rounded-lg px-3 py-2 focus:outline-none focus:border-slate-400 transition shadow-sm font-medium">
+                    <option value="date_desc">Newest First</option>
+                    <option value="score_desc">Highest Score</option>
+                    <option value="score_asc">Lowest Score</option>
+                    <option value="novelty_desc">Highest Novelty</option>
+                    <option value="date_asc">Oldest First</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Table View -->
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500 bg-slate-50/80">
+                        <th class="py-3.5 px-4">Proposal / Applicant</th>
+                        <th class="py-3.5 px-4">Triage Status</th>
+                        <th class="py-3.5 px-4">Stage 1 Compliance</th>
+                        <th class="py-3.5 px-4">Stage 2 Novelty</th>
+                        <th class="py-3.5 px-4">Final Score</th>
+                        <th class="py-3.5 px-4">Latency</th>
+                        <th class="py-3.5 px-4 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="submissions-table-body" class="divide-y divide-slate-100 text-xs">
+                    <!-- Dynamic Rows Rendered by JS -->
+                </tbody>
+            </table>
+            
+            <!-- Empty State -->
+            <div id="empty-state" class="hidden p-12 text-center">
+                <div class="w-12 h-12 rounded-full bg-slate-100 border border-slate-200 mx-auto flex items-center justify-center text-slate-400 mb-3">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xs font-semibold text-slate-700">No submissions found</h3>
+                <p class="text-[11px] text-slate-500 mt-1">Upload a PDF or click "Load 3 Sample Papers" to test the screening pipeline.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Dossier View -->
+<div id="report-modal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="bento-card w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 sm:p-7 shadow-modal border border-slate-200 modal-enter bg-white">
+        <div id="modal-body-content">
+            <!-- Rendered dynamically -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}

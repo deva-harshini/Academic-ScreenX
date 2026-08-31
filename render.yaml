@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: academic-screenx
+    runtime: python
+    buildCommand: "pip install -r requirements.txt && python tests/generate_samples.py"
+    startCommand: "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8
+      - key: USE_MOCK_LLM
+        value: "True"
+      - key: SECRET_KEY
+        generateValue: true

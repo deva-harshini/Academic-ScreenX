@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Academic-ScreenX{% endblock %}</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                        faculty: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            300: '#cbd5e1',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                        }
+                    },
+                    boxShadow: {
+                        'subtle': '0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05)',
+                        'card': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)',
+                        'modal': '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Custom Minimal Styles -->
+    <link rel="stylesheet" href="/static/css/custom.css">
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-sky-100 selection:text-sky-900">
+
+    <!-- Clean Academic Header -->
+    <header class="sticky top-0 z-40 w-full bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-subtle">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <a href="/dashboard" class="flex items-center gap-2.5 group">
+                    <div class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center font-bold text-sm text-white shadow-sm group-hover:bg-slate-800 transition">
+                        ASX
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-sm tracking-tight text-slate-900">Academic-ScreenX</span>
+                            <span class="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">v1.0</span>
+                        </div>
+                        <span class="text-[11px] text-slate-500 hidden sm:block">Multi-Agent Abstract Screening Platform</span>
+                    </div>
+                </a>
+            </div>
+
+            <!-- Header Right -->
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                        Mock Engine Active
+                    </span>
+                </div>
+
+                {% if user %}
+                <div class="flex items-center gap-3 text-xs border-l border-slate-200 pl-3">
+                    <div class="text-right hidden sm:block">
+                        <span class="text-slate-800 font-semibold block">{{ user.name or 'Dr. Eleanor Vance' }}</span>
+                        <span class="text-slate-500 text-[10px]">Faculty Committee</span>
+                    </div>
+                    <button onclick="handleLogout()" class="px-3 py-1.5 text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition border border-slate-200 text-xs font-medium">
+                        Sign Out
+                    </button>
+                </div>
+                {% else %}
+                <a href="/login" class="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold transition shadow-sm">
+                    Sign In
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Minimal Footer -->
+    <footer class="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p>Academic-ScreenX • Autonomous Multi-Agent Paper Screening System</p>
+            <p class="text-[11px] text-slate-400">Stage 1: Compliance • Stage 2: Novelty • Stage 3: Technical Critic</p>
+        </div>
+    </footer>
+
+    <script>
+        async function handleLogout() {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                window.location.href = '/login';
+            } catch (err) {
+                console.error('Logout error:', err);
+                window.location.href = '/login';
+            }
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
