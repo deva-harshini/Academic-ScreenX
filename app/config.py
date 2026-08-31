@@ -4,6 +4,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Detect serverless environment (e.g. Vercel or AWS Lambda) where root filesystem is read-only
+IS_VERCEL = os.getenv("VERCEL") == "1" or "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+
 class Settings(BaseSettings):
     APP_NAME: str = "Academic-ScreenX"
     APP_VERSION: str = "1.0.0"
@@ -11,10 +14,14 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 # 24 hours
     
-    DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR}/academic_screenx.db")
+    # Database: Use /tmp on Vercel/serverless environments where root filesystem is read-only
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL", 
+        f"sqlite:////tmp/academic_screenx.db" if IS_VERCEL else f"sqlite:///{BASE_DIR}/academic_screenx.db"
+    )
     
-    # Storage
-    UPLOAD_DIR: Path = BASE_DIR / "uploads"
+    # Storage: Use /tmp on Vercel for temporary file parsing during function invocations
+    UPLOAD_DIR: Path = Path("/tmp/uploads") if IS_VERCEL else (BASE_DIR / "uploads")
     SAMPLE_DIR: Path = BASE_DIR / "sample_pdfs"
     
     # Mock / External APIs
@@ -27,6 +34,13 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Ensure directories exist
-settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-settings.SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
+# Ensure storage directories exist without crashing on read-only filesystems
+try:
+    settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
+
+try:
+    settings.SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass

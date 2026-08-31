@@ -17,14 +17,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 async def lifespan(app: FastAPI):
     # Startup: Ensure DB tables exist and seed demo user
     logger.info("Initializing Academic-ScreenX Database...")
-    Base.metadata.create_all(bind=engine)
-    
-    db = SessionLocal()
     try:
-        ensure_default_faculty_user(db)
-        logger.info("Default Faculty Account verified: faculty@university.edu / admin123")
-    finally:
-        db.close()
+        Base.metadata.create_all(bind=engine)
+        db = SessionLocal()
+        try:
+            ensure_default_faculty_user(db)
+            logger.info("Default Faculty Account verified: faculty@university.edu / admin123")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Error during database initialization: {e}", exc_info=True)
         
     yield
     # Shutdown
@@ -46,10 +48,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
+# Mount static files safely
 static_dir = BASE_DIR / "app" / "static"
-static_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+try:
+    static_dir.mkdir(parents=True, exist_ok=True)
+except Exception:
+    pass
+
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
 # Register Routers
 app.include_router(auth_routes.router)
