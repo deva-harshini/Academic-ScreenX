@@ -6,8 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.database import engine, Base, SessionLocal
-from app.auth import ensure_default_faculty_user
+from app.database import engine, Base, SessionLocal, init_db
 from app.routes import auth_routes, submission_routes, web_routes
 from app.agents.base import logger
 
@@ -17,17 +16,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 async def lifespan(app: FastAPI):
     # Startup: Ensure DB tables exist and seed demo user
     logger.info("Initializing Academic-ScreenX Database...")
-    try:
-        Base.metadata.create_all(bind=engine)
-        db = SessionLocal()
-        try:
-            ensure_default_faculty_user(db)
-            logger.info("Default Faculty Account verified: faculty@university.edu / admin123")
-        finally:
-            db.close()
-    except Exception as e:
-        logger.error(f"Error during database initialization: {e}", exc_info=True)
-        
+    init_db()
     yield
     # Shutdown
     logger.info("Academic-ScreenX shutting down...")

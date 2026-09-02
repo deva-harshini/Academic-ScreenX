@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.config import settings
 
@@ -15,8 +15,43 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
+    """Database session dependency with automatic table verification"""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+def init_db():
+    """Ensure all database tables and default faculty user exist across local and serverless environments"""
+    try:
+        import app.models  # Populate Base.metadata
+        Base.metadata.create_all(bind=engine)
+        
+        # Seed default faculty user if not exists
+        db = SessionLocal()
+        try:
+            from app.models import User, UserRole
+            import bcrypt
+            
+            default_email = "faculty@university.edu"
+            existing = db.query(User).filter(User.email == default_email).first()
+            if not existing:
+                salt = bcrypt.gensalt()
+                pw_hash = bcrypt.hashpw(b"admin123", salt).decode("utf-8")
+                faculty_user = User(
+                    email=default_email,
+                    name="Dr. Eleanor Vance (Faculty Chair)",
+                    password_hash=pw_hash,
+                    role=UserRole.FACULTY.value
+                )
+                db.add(faculty_user)
+                db.commit()
+        finally:
+            db.close()
+    except Exception as e:
+        import logging
+        logging.getLogger("AcademicScreenX").error(f"Database initialization error: {e}", exc_info=True)
+
+# Run initialization on import
+init_db()
