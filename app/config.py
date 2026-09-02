@@ -4,8 +4,35 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Detect serverless environment (e.g. Vercel or AWS Lambda) where root filesystem is read-only
-IS_VERCEL = os.getenv("VERCEL") == "1" or "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+def is_serverless_or_readonly() -> bool:
+    """
+    Robustly detect if the application is running in a serverless or read-only environment
+    such as Vercel Serverless Functions, AWS Lambda, or a read-only container.
+    """
+    # 1. Check explicit Vercel environment flags
+    if os.getenv("VERCEL") in ("1", "true", "True"):
+        return True
+    if os.getenv("VERCEL_ENV") or os.getenv("VERCEL_REGION") or os.getenv("NOW_REGION"):
+        return True
+        
+    # 2. Check AWS Lambda / Serverless container markers
+    if os.getenv("LAMBDA_TASK_ROOT") or os.getenv("AWS_EXECUTION_ENV") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        return True
+        
+    # 3. Check if running inside Vercel's standard /var/task deployment path
+    if str(BASE_DIR).startswith("/var/task") or str(Path.cwd()).startswith("/var/task"):
+        return True
+        
+    # 4. Active write permission check on BASE_DIR
+    try:
+        test_file = BASE_DIR / ".write_test"
+        test_file.touch()
+        test_file.unlink()
+        return False
+    except (OSError, PermissionError):
+        return True
+
+IS_VERCEL = is_serverless_or_readonly()
 
 class Settings(BaseSettings):
     APP_NAME: str = "Academic-ScreenX"
