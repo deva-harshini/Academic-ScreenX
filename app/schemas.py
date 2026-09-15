@@ -73,6 +73,13 @@ class CriticResult(BaseModel):
     weaknesses: List[str]
     recommendation: str           # 'Approved for Faculty', 'Needs Revision', 'Flagged for Low Novelty'
 
+# --- AI RAG Document Evaluation Layer ---
+class RAGEvaluationResult(BaseModel):
+    match_status: str             # "Qualified" | "Not Qualified" | "Needs Review"
+    key_evidence_found: List[str] = []
+    missing_requirements: List[str] = []
+    metadata: Dict[str, Any] = {}
+
 # --- Multi-Agent Orchestrated Pipeline Output ---
 class PipelineEvaluation(BaseModel):
     title: str
@@ -81,6 +88,7 @@ class PipelineEvaluation(BaseModel):
     compliance: ComplianceResult
     novelty: Optional[NoveltyResult] = None
     critic: Optional[CriticResult] = None
+    rag_evaluation: Optional[Dict[str, Any]] = None
     processing_time_seconds: float
     error_message: Optional[str] = None
 
@@ -98,6 +106,7 @@ class SubmissionListItem(BaseModel):
     overall_score: float
     dataset_feasibility: Optional[str]
     summary: Optional[str]
+    rag_match_status: Optional[str] = None
     processing_time_seconds: float
     uploaded_at: datetime
     processed_at: Optional[datetime]
@@ -116,6 +125,9 @@ class SubmissionDetail(SubmissionListItem):
     dataset_analysis: Optional[str]
     technical_depth_score: float
     methodology_rigor_score: float
+    rag_evaluation: Optional[Dict[str, Any]] = None
+    rag_evidence: List[str] = []
+    rag_missing_requirements: List[str] = []
     error_message: Optional[str]
 
 class DashboardStats(BaseModel):

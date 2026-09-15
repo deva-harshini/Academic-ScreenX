@@ -65,6 +65,12 @@ class Submission(Base):
     methodology_rigor_score = Column(Float, default=0.0)
     summary = Column(Text, nullable=True)          # 3-sentence summary review
     
+    # AI RAG Evaluation Layer
+    rag_evaluation = Column(Text, default="{}")    # JSON dict of complete RAG evaluation
+    rag_match_status = Column(String(50), nullable=True) # Qualified / Not Qualified / Needs Review
+    rag_evidence = Column(Text, default="[]")      # JSON list of key evidence found
+    rag_missing_requirements = Column(Text, default="[]") # JSON list of missing requirements
+
     # Execution metrics & audit
     error_message = Column(Text, nullable=True)
     processing_time_seconds = Column(Float, default=0.0)

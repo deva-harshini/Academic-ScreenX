@@ -1,28 +1,53 @@
-// Academic-ScreenX: Light-Mode Dashboard Controller
+// Academic-ScreenX Dashboard & Real-Time Funnel Controller
 
-let currentStatusFilter = 'all';
-let currentSearchQuery = '';
+let allSubmissions = [];
+let currentFilter = 'all';
+let currentSearch = '';
 let currentSort = 'date_desc';
 let pollingTimer = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-    initDropzone();
+    initDashboard();
+});
+
+function initDashboard() {
+    setupEventListeners();
+    setupDropZone();
     loadDashboardStats();
     loadSubmissions();
     startPolling();
+}
 
+function setupEventListeners() {
+    // Filter buttons
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    filterButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            filterButtons.forEach(b => b.classList.remove('bg-slate-900', 'text-white', 'shadow-sm'));
+            filterButtons.forEach(b => b.classList.add('bg-white', 'text-slate-600', 'hover:bg-slate-50'));
+            
+            btn.classList.add('bg-slate-900', 'text-white', 'shadow-sm');
+            btn.classList.remove('bg-white', 'text-slate-600', 'hover:bg-slate-50');
+            
+            currentFilter = btn.dataset.filter || 'all';
+            loadSubmissions();
+        });
+    });
+
+    // Search input
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
-        let debounceTimeout;
+        let debounceTimer;
         searchInput.addEventListener('input', (e) => {
-            clearTimeout(debounceTimeout);
-            debounceTimeout = setTimeout(() => {
-                currentSearchQuery = e.target.value.trim();
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                currentSearch = e.target.value.trim();
                 loadSubmissions();
-            }, 250);
+            }, 300);
         });
     }
 
+    // Sort select
     const sortSelect = document.getElementById('sort-select');
     if (sortSelect) {
         sortSelect.addEventListener('change', (e) => {
@@ -30,18 +55,89 @@ document.addEventListener('DOMContentLoaded', () => {
             loadSubmissions();
         });
     }
-});
 
-function setFilter(status) {
-    currentStatusFilter = status;
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-        if (btn.dataset.status === status) {
-            btn.className = 'filter-btn px-3 py-1.5 rounded-md font-semibold transition bg-white text-slate-900 shadow-sm';
-        } else {
-            btn.className = 'filter-btn px-3 py-1.5 rounded-md font-medium transition text-slate-600 hover:text-slate-900';
-        }
+    // File Input change
+    const fileInput = document.getElementById('file-input');
+    if (fileInput) {
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                uploadFiles(Array.from(e.target.files));
+            }
+        });
+    }
+}
+
+function setupDropZone() {
+    const dropZone = document.getElementById('drop-zone');
+    if (!dropZone) return;
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('border-slate-800', 'bg-slate-50/80');
+        }, false);
     });
-    loadSubmissions();
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('border-slate-800', 'bg-slate-50/80');
+        }, false);
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = Array.from(dt.files).filter(f => f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.txt'));
+        if (files.length > 0) {
+            uploadFiles(files);
+        } else {
+            showToast('Please upload PDF or TXT proposal files.', 'warning');
+        }
+    }, false);
+}
+
+async function uploadFiles(files) {
+    const validFiles = files.filter(f => f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.txt'));
+    if (validFiles.length === 0) {
+        showToast('Please select valid PDF or TXT files.', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    validFiles.forEach(file => {
+        formData.append('files', file);
+    });
+
+    showUploadProgress(true, `Uploading ${validFiles.length} proposal document(s)...`);
+
+    try {
+        const response = await fetch('/api/submissions/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || 'Upload failed');
+        }
+
+        const result = await response.json();
+        showToast(result.message, 'success');
+        
+        // Reset file input
+        const fileInput = document.getElementById('file-input');
+        if (fileInput) fileInput.value = '';
+
+        // Reload data
+        loadDashboardStats();
+        loadSubmissions();
+    } catch (error) {
+        showToast(error.message, 'error');
+    } finally {
+        showUploadProgress(false);
+    }
 }
 
 async function loadDashboardStats() {
@@ -49,29 +145,15 @@ async function loadDashboardStats() {
         const res = await fetch('/api/submissions/stats');
         if (!res.ok) return;
         const stats = await res.json();
-        
-        const elTotal = document.getElementById('stat-total');
-        if (elTotal) elTotal.textContent = stats.total_uploaded;
-        
-        const elAppPct = document.getElementById('stat-approved-pct');
-        if (elAppPct) elAppPct.textContent = `${stats.approved_pct}%`;
-        
-        const elAppCnt = document.getElementById('stat-approved-count');
-        if (elAppCnt) elAppCnt.textContent = `(${stats.approved_count} papers)`;
 
-        const elRevCnt = document.getElementById('stat-revision-count');
-        if (elRevCnt) elRevCnt.textContent = stats.revision_count;
-        
-        const elFlgPct = document.getElementById('stat-flagged-pct');
-        if (elFlgPct) elFlgPct.textContent = `${stats.flagged_pct}%`;
-        
-        const elFlgCnt = document.getElementById('stat-flagged-count');
-        if (elFlgCnt) elFlgCnt.textContent = `(${stats.flagged_count} papers)`;
-        
-        const elAvgTime = document.getElementById('stat-avg-time');
-        if (elAvgTime) elAvgTime.textContent = `${stats.avg_processing_time}s`;
-    } catch (err) {
-        console.error('Error loading stats:', err);
+        document.getElementById('stat-total').textContent = stats.total_uploaded;
+        document.getElementById('stat-approved').textContent = stats.approved_count;
+        document.getElementById('stat-approved-pct').textContent = `${stats.approved_pct}% acceptance`;
+        document.getElementById('stat-revision').textContent = stats.revision_count;
+        document.getElementById('stat-flagged').textContent = stats.flagged_count;
+        document.getElementById('stat-latency').textContent = `${stats.avg_processing_time}s`;
+    } catch (e) {
+        console.error('Failed to load stats', e);
     }
 }
 
@@ -80,223 +162,135 @@ async function loadSubmissions() {
     const emptyState = document.getElementById('empty-state');
     
     try {
-        let url = `/api/submissions/list?sort=${encodeURIComponent(currentSort)}`;
-        if (currentStatusFilter !== 'all') {
-            url += `&status=${encodeURIComponent(currentStatusFilter)}`;
+        let url = `/api/submissions/list?sort=${currentSort}`;
+        if (currentFilter !== 'all') {
+            url += `&status=${currentFilter}`;
         }
-        if (currentSearchQuery) {
-            url += `&q=${encodeURIComponent(currentSearchQuery)}`;
+        if (currentSearch) {
+            url += `&q=${encodeURIComponent(currentSearch)}`;
         }
 
         const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch submissions');
-        const submissions = await res.json();
+        const data = await res.json();
+        allSubmissions = data;
 
-        if (submissions.length === 0) {
+        if (data.length === 0) {
             tableBody.innerHTML = '';
-            if (emptyState) emptyState.classList.remove('hidden');
+            emptyState.classList.remove('hidden');
             return;
         }
 
-        if (emptyState) emptyState.classList.add('hidden');
-        tableBody.innerHTML = submissions.map(sub => renderSubmissionRow(sub)).join('');
-    } catch (err) {
-        console.error('Error fetching submissions:', err);
+        emptyState.classList.add('hidden');
+        renderSubmissionsTable(data);
+    } catch (e) {
+        console.error('Error loading submissions', e);
     }
 }
 
-function renderSubmissionRow(sub) {
-    let statusBadge = '';
-    if (sub.status === 'approved') {
-        statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Approved
-        </span>`;
-    } else if (sub.status === 'revision') {
-        statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 shadow-sm">
-            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Needs Revision
-        </span>`;
-    } else if (sub.status === 'flagged') {
-        statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">
-            <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Flagged (Low Novelty)
-        </span>`;
-    } else if (sub.status === 'processing' || sub.status === 'pending') {
-        statusBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200 pulse-subtle">
-            <svg class="animate-spin -ml-0.5 mr-1 h-3 w-3 text-slate-500" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Evaluating...
-        </span>`;
-    } else {
-        statusBadge = `<span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-            Failed
-        </span>`;
-    }
+function renderSubmissionsTable(submissions) {
+    const tableBody = document.getElementById('submissions-table-body');
+    tableBody.innerHTML = submissions.map(sub => {
+        let statusBadge = '';
+        let stageIndicator = '';
 
-    const scoreDisplay = (sub.status === 'processing' || sub.status === 'pending')
-        ? '<span class="text-slate-400 font-mono">--</span>'
-        : `<div class="flex items-baseline gap-1">
-            <span class="font-bold text-sm ${sub.overall_score >= 7.0 ? 'text-emerald-700' : (sub.overall_score >= 4.5 ? 'text-amber-700' : 'text-rose-700')}">
-                ${sub.overall_score.toFixed(1)}
-            </span>
-            <span class="text-slate-400 text-[10px] font-medium">/ 10</span>
-           </div>`;
-
-    const compDisplay = sub.compliance_score > 0 ? `<span class="font-semibold text-slate-700">${sub.compliance_score.toFixed(1)}</span><span class="text-slate-400 text-[10px]">/10</span>` : '<span class="text-slate-400 font-mono">--</span>';
-    const novDisplay = sub.novelty_score > 0 ? `<span class="font-semibold text-slate-700">${sub.novelty_score.toFixed(1)}</span><span class="text-slate-400 text-[10px]">/10</span>` : '<span class="text-slate-400 font-mono">--</span>';
-
-    return `
-    <tr class="hover:bg-slate-50 transition cursor-pointer" onclick="openReportModal(${sub.id})">
-        <td class="py-3.5 px-4">
-            <div class="flex flex-col">
-                <span class="font-semibold text-slate-900 hover:text-sky-700 transition line-clamp-1">${escapeHtml(sub.title)}</span>
-                <span class="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
-                    <span>${escapeHtml(sub.student_name || 'Anonymous Applicant')}</span>
-                    <span class="text-slate-300">•</span>
-                    <span class="font-mono text-slate-400 text-[10px]">${escapeHtml(sub.pdf_filename)}</span>
-                </span>
-            </div>
-        </td>
-        <td class="py-3.5 px-4">
-            ${statusBadge}
-        </td>
-        <td class="py-3.5 px-4 text-xs">
-            ${compDisplay}
-        </td>
-        <td class="py-3.5 px-4 text-xs">
-            ${novDisplay}
-        </td>
-        <td class="py-3.5 px-4">
-            ${scoreDisplay}
-        </td>
-        <td class="py-3.5 px-4 text-[11px] text-slate-500 font-mono">
-            ${sub.processing_time_seconds > 0 ? `${sub.processing_time_seconds}s` : '--'}
-        </td>
-        <td class="py-3.5 px-4 text-right">
-            <button class="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold transition border border-slate-200 shadow-sm" onclick="event.stopPropagation(); openReportModal(${sub.id})">
-                View Dossier
-            </button>
-        </td>
-    </tr>
-    `;
-}
-
-function initDropzone() {
-    const dropzone = document.getElementById('dropzone');
-    const fileInput = document.getElementById('file-input');
-    if (!dropzone || !fileInput) return;
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropzone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropzone.classList.add('dropzone-active');
-        }, false);
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropzone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropzone.classList.remove('dropzone-active');
-        }, false);
-    });
-
-    dropzone.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files && files.length > 0) {
-            handleUploadFiles(files);
+        if (sub.status === 'approved') {
+            statusBadge = `<span class="badge-approved">✓ Approved</span>`;
+        } else if (sub.status === 'revision') {
+            statusBadge = `<span class="badge-revision">⚠ Needs Revision</span>`;
+        } else if (sub.status === 'flagged') {
+            statusBadge = `<span class="badge-flagged">✗ Flagged Novelty</span>`;
+        } else if (sub.status === 'processing') {
+            statusBadge = `<span class="badge-processing"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping"></span> Processing</span>`;
+        } else {
+            statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">Queued</span>`;
         }
-    });
 
-    fileInput.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files.length > 0) {
-            handleUploadFiles(e.target.files);
-        }
-    });
-}
-
-async function handleUploadFiles(files) {
-    const formData = new FormData();
-    let validCount = 0;
-
-    for (let i = 0; i < files.length; i++) {
-        if (files[i].name.toLowerCase().endsWith('.pdf')) {
-            formData.append('files', files[i]);
-            validCount++;
-        }
-    }
-
-    if (validCount === 0) {
-        showToast('Please select valid PDF documents.', 'error');
-        return;
-    }
-
-    const uploadStatus = document.getElementById('upload-status');
-    if (uploadStatus) {
-        uploadStatus.classList.remove('hidden');
-        uploadStatus.textContent = `Evaluating ${validCount} proposal(s) with Multi-Agent Pipeline...`;
-    }
-
-    try {
-        const res = await fetch('/api/submissions/upload', {
-            method: 'POST',
-            body: formData
+        const dateStr = new Date(sub.uploaded_at).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
         });
 
-        if (!res.ok) {
-            const errData = await res.json();
-            throw new Error(errData.detail || 'Upload failed');
-        }
+        const isProcessing = sub.status === 'processing' || sub.status === 'pending';
 
-        const data = await res.json();
-        showToast(data.message, 'success');
-        
-        loadDashboardStats();
-        loadSubmissions();
-    } catch (err) {
-        showToast(err.message, 'error');
-    } finally {
-        if (uploadStatus) {
-            uploadStatus.classList.add('hidden');
-        }
-        document.getElementById('file-input').value = '';
-    }
-}
+        return `
+            <tr class="hover:bg-slate-50/80 transition group ${isProcessing ? 'pulse-subtle' : ''}">
+                <td class="px-5 py-4">
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-white group-hover:shadow-sm transition">
+                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="space-y-0.5 min-w-0">
+                            <a href="javascript:void(0)" onclick="openReportModal(${sub.id})" class="font-bold text-xs text-slate-900 hover:text-blue-600 transition block truncate max-w-xs md:max-w-md">
+                                ${escapeHtml(sub.title)}
+                            </a>
+                            <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                                <span>${escapeHtml(sub.student_name || 'Anonymous Applicant')}</span>
+                                <span>•</span>
+                                <span class="font-mono">${escapeHtml(sub.pdf_filename)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </td>
 
-async function loadDemoSamples() {
-    const btn = document.getElementById('btn-load-demo');
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = `
-            <svg class="animate-spin -ml-0.5 mr-1 h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <span>Evaluating 3 Papers...</span>
+                <td class="px-5 py-4 whitespace-nowrap">
+                    ${statusBadge}
+                    <div class="text-[10px] text-slate-400 font-mono mt-0.5">${sub.current_stage || 'Done'}</div>
+                </td>
+
+                <td class="px-5 py-4 whitespace-nowrap text-center">
+                    <div class="inline-flex items-baseline gap-1">
+                        <span class="text-sm font-bold ${sub.compliance_score >= 8 ? 'text-emerald-600' : 'text-slate-700'}">${sub.compliance_score ? sub.compliance_score.toFixed(1) : '-'}</span>
+                        <span class="text-[10px] text-slate-400">/10</span>
+                    </div>
+                </td>
+
+                <td class="px-5 py-4 whitespace-nowrap text-center">
+                    <div class="inline-flex items-baseline gap-1">
+                        <span class="text-sm font-bold ${sub.novelty_score >= 7 ? 'text-blue-600' : sub.novelty_score > 0 ? 'text-amber-600' : 'text-slate-400'}">${sub.novelty_score ? sub.novelty_score.toFixed(1) : '-'}</span>
+                        <span class="text-[10px] text-slate-400">/10</span>
+                    </div>
+                </td>
+
+                <td class="px-5 py-4 whitespace-nowrap text-center">
+                    <div class="inline-flex items-baseline gap-1">
+                        <span class="text-sm font-black ${sub.overall_score >= 7.5 ? 'text-emerald-700' : sub.overall_score >= 5 ? 'text-slate-800' : 'text-rose-600'}">${sub.overall_score ? sub.overall_score.toFixed(1) : '-'}</span>
+                        <span class="text-[10px] text-slate-400">/10</span>
+                    </div>
+                </td>
+
+                <td class="px-5 py-4 whitespace-nowrap text-right">
+                    <div class="text-[11px] font-mono text-slate-500">${dateStr}</div>
+                    <div class="text-[10px] text-slate-400 font-mono">${sub.processing_time_seconds ? `${sub.processing_time_seconds}s` : ''}</div>
+                </td>
+
+                <td class="px-5 py-4 whitespace-nowrap text-right text-xs">
+                    <div class="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition">
+                        <button onclick="openReportModal(${sub.id})" title="View Evaluation Dossier" class="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 rounded-md transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                        </button>
+                        <a href="/report/${sub.id}" target="_blank" title="Open Full Report" class="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 rounded-md transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                            </svg>
+                        </a>
+                        <button onclick="deleteSubmission(${sub.id})" title="Delete Submission" class="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-50 rounded-md transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </td>
+            </tr>
         `;
-    }
-
-    try {
-        const res = await fetch('/demo/load-samples', { method: 'POST' });
-        const data = await res.json();
-        showToast(data.message, 'success');
-        loadDashboardStats();
-        loadSubmissions();
-    } catch (err) {
-        showToast('Failed to load sample proposals', 'error');
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = `
-                <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
-                </svg>
-                <span>Load 3 Sample Papers</span>
-            `;
-        }
-    }
+    }).join('');
 }
 
 async function openReportModal(id) {
@@ -376,6 +370,21 @@ function renderModalDetails(sub) {
         `).join('')
         : '<p class="text-[11px] text-slate-500 italic p-3 bg-slate-50 rounded-lg border border-slate-200">No duplicate or saturated literature matches detected.</p>';
 
+    // RAG Evidence & Requirements
+    const ragEvidenceList = (sub.rag_evidence && sub.rag_evidence.length > 0)
+        ? sub.rag_evidence.map(e => `<li>${escapeHtml(e)}</li>`).join('')
+        : '<li class="italic text-slate-400">Baseline research proposal content extracted.</li>';
+
+    const ragMissingList = (sub.rag_missing_requirements && sub.rag_missing_requirements.length > 0)
+        ? sub.rag_missing_requirements.map(m => `<li>${escapeHtml(m)}</li>`).join('')
+        : '<li class="text-emerald-700 font-semibold">None. All criteria satisfied.</li>';
+
+    const ragStatusBadge = sub.rag_match_status === 'Qualified'
+        ? `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">Qualified</span>`
+        : sub.rag_match_status === 'Needs Review'
+        ? `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">Needs Review</span>`
+        : `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">Not Qualified</span>`;
+
     modalContent.innerHTML = `
         <div class="space-y-6">
             <!-- Modal Header -->
@@ -404,6 +413,31 @@ function renderModalDetails(sub) {
                 <p class="text-xs text-slate-800 leading-relaxed font-medium">
                     "${escapeHtml(sub.summary || 'Summary pending.')}"
                 </p>
+            </div>
+
+            <!-- AI RAG Evaluation Layer Breakdown -->
+            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider">RAG Layer</span>
+                        <span class="font-bold text-slate-900 text-xs">Vector Retrieval & Criteria Evaluation</span>
+                    </div>
+                    ${ragStatusBadge}
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div class="p-3 bg-white rounded-lg border border-slate-200 space-y-1.5 shadow-sm">
+                        <span class="text-[10px] font-bold text-emerald-800 uppercase block">✓ Key Evidence Found</span>
+                        <ul class="text-[11px] text-slate-600 space-y-1 list-disc pl-4">
+                            ${ragEvidenceList}
+                        </ul>
+                    </div>
+                    <div class="p-3 bg-white rounded-lg border border-slate-200 space-y-1.5 shadow-sm">
+                        <span class="text-[10px] font-bold text-amber-800 uppercase block">⚠ Missing Requirements / Gaps</span>
+                        <ul class="text-[11px] text-slate-600 space-y-1 list-disc pl-4">
+                            ${ragMissingList}
+                        </ul>
+                    </div>
+                </div>
             </div>
 
             <!-- 3-Stage Details Grid -->
@@ -482,20 +516,50 @@ function startPolling() {
     }, 2500);
 }
 
+async function deleteSubmission(id) {
+    if (!confirm('Are you sure you want to delete this submission record?')) return;
+    try {
+        const res = await fetch(`/api/submissions/${id}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Could not delete submission.');
+        showToast('Submission deleted successfully.', 'success');
+        loadDashboardStats();
+        loadSubmissions();
+    } catch (e) {
+        showToast(e.message, 'error');
+    }
+}
+
+function showUploadProgress(show, text = '') {
+    const progressEl = document.getElementById('upload-progress');
+    const textEl = document.getElementById('upload-progress-text');
+    if (!progressEl) return;
+    if (show) {
+        textEl.textContent = text;
+        progressEl.classList.remove('hidden');
+    } else {
+        progressEl.classList.add('hidden');
+    }
+}
+
 function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
     const toast = document.createElement('div');
-    toast.className = 'fixed bottom-5 right-5 px-4 py-3 rounded-lg text-xs font-semibold shadow-modal z-50 transition bg-slate-900 text-white flex items-center gap-2 border border-slate-800';
-    toast.innerHTML = `
-        <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-        </svg>
-        <span>${escapeHtml(message)}</span>
-    `;
-    document.body.appendChild(toast);
+    const bgClass = type === 'success' ? 'bg-emerald-800 text-white' : type === 'error' ? 'bg-rose-800 text-white' : 'bg-slate-900 text-white';
+    
+    toast.className = `px-4 py-3 rounded-xl text-xs font-medium shadow-lg transition-all transform duration-300 translate-y-2 opacity-0 flex items-center gap-2 ${bgClass}`;
+    toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
+    
+    container.appendChild(toast);
     setTimeout(() => {
-        toast.style.opacity = '0';
+        toast.classList.remove('translate-y-2', 'opacity-0');
+    }, 10);
+
+    setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
         setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    }, 3500);
 }
 
 function escapeHtml(str) {

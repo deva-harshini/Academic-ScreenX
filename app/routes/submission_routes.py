@@ -20,14 +20,15 @@ from app.schemas import (
 from app.auth import get_current_user_optional, get_current_user
 from app.config import settings
 from app.agents.pipeline import pipeline_engine
+from app.services.ai_evaluator import evaluate_document
 from app.agents.base import logger
 
 router = APIRouter(prefix="/api/submissions", tags=["Submissions"])
 
 def process_submission_task(submission_id: int):
     """
-    Background worker task: executes the 3-stage autonomous agent pipeline
-    and updates the database record with evaluation metrics.
+    Background worker task: executes the multi-agent pipeline and AI RAG document evaluation,
+    then updates the database record with comprehensive evaluation metrics.
     """
     db = SessionLocal()
     try:
@@ -40,7 +41,7 @@ def process_submission_task(submission_id: int):
         sub.current_stage = "Stage 1: Compliance Auditor"
         db.commit()
 
-        # Run multi-agent pipeline
+        # Run multi-agent pipeline (which executes Stages 1-3 and RAG Layer)
         eval_result: PipelineEvaluation = pipeline_engine.process_pdf(
             pdf_path=sub.file_path,
             fallback_title=sub.title
@@ -72,6 +73,23 @@ def process_submission_task(submission_id: int):
             sub.methodology_rigor_score = eval_result.critic.methodology_rigor_score
             sub.summary = eval_result.critic.summary_review
 
+        # Update model with AI RAG Document Evaluation Layer
+        if eval_result.rag_evaluation:
+            sub.rag_evaluation = json.dumps(eval_result.rag_evaluation)
+            sub.rag_match_status = eval_result.rag_evaluation.get("Match Status") or eval_result.rag_evaluation.get("match_status")
+            sub.rag_evidence = json.dumps(eval_result.rag_evaluation.get("Key Evidence Found") or eval_result.rag_evaluation.get("key_evidence_found") or [])
+            sub.rag_missing_requirements = json.dumps(eval_result.rag_evaluation.get("Missing Requirements") or eval_result.rag_evaluation.get("missing_requirements") or [])
+        else:
+            # Direct RAG evaluation fallback
+            try:
+                rag_direct = evaluate_document(sub.file_path)
+                sub.rag_evaluation = json.dumps(rag_direct)
+                sub.rag_match_status = rag_direct.get("Match Status")
+                sub.rag_evidence = json.dumps(rag_direct.get("Key Evidence Found", []))
+                sub.rag_missing_requirements = json.dumps(rag_direct.get("Missing Requirements", []))
+            except Exception as e:
+                logger.warning(f"Direct RAG fallback warning for submission #{sub.id}: {e}")
+
         sub.status = eval_result.final_status
         sub.current_stage = "Completed"
         sub.processing_time_seconds = eval_result.processing_time_seconds
@@ -100,8 +118,8 @@ async def upload_submissions(
     current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
-    Accepts single or batch PDF uploads, validates file type, creates records,
-    and enqueues background processing tasks.
+    Accepts single or batch PDF/TXT uploads, validates file type, creates records,
+    and enqueues background multi-agent and RAG processing tasks.
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files provided.")
@@ -109,20 +127,20 @@ async def upload_submissions(
     created_submissions = []
 
     for file in files:
-        if not file.filename.lower().endswith(".pdf"):
-            continue # skip non-pdf files
+        ext = Path(file.filename).suffix.lower()
+        if ext not in (".pdf", ".txt", ".md"):
+            continue # skip non-supported files
 
         # Generate unique filename
-        file_ext = Path(file.filename).suffix
         safe_base = "".join(c for c in Path(file.filename).stem if c.isalnum() or c in ("-", "_")).rstrip()
-        unique_name = f"{safe_base}_{uuid.uuid4().hex[:8]}{file_ext}"
+        unique_name = f"{safe_base}_{uuid.uuid4().hex[:8]}{ext}"
         save_path = settings.UPLOAD_DIR / unique_name
 
         with open(save_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         file_size_kb = round(os.path.getsize(save_path) / 1024, 2)
-        initial_title = file.filename.replace(".pdf", "").replace("_", " ").title()
+        initial_title = Path(file.filename).stem.replace("_", " ").title()
 
         submission = Submission(
             user_id=current_user.id if current_user else None,
@@ -132,7 +150,7 @@ async def upload_submissions(
             file_path=str(save_path),
             file_size_kb=file_size_kb,
             status=SubmissionStatus.PENDING.value,
-            current_stage="Enqueued in Agent Pipeline"
+            current_stage="Enqueued in Agent & RAG Pipeline"
         )
         db.add(submission)
         db.commit()
@@ -147,10 +165,10 @@ async def upload_submissions(
         })
 
     if not created_submissions:
-        raise HTTPException(status_code=400, detail="No valid PDF documents were found in the upload request.")
+        raise HTTPException(status_code=400, detail="No valid PDF or TXT documents were found in the upload request.")
 
     return {
-        "message": f"Successfully queued {len(created_submissions)} proposal(s) for multi-agent evaluation.",
+        "message": f"Successfully queued {len(created_submissions)} proposal(s) for multi-agent & RAG evaluation.",
         "submissions": created_submissions
     }
 
@@ -229,6 +247,8 @@ def get_submission_report(submission_id: int, db: Session = Depends(get_db)):
         try: return json.loads(val)
         except Exception: return default
 
+    rag_eval_data = safe_json(sub.rag_evaluation, {})
+
     return SubmissionDetail(
         id=sub.id,
         title=sub.title,
@@ -242,6 +262,10 @@ def get_submission_report(submission_id: int, db: Session = Depends(get_db)):
         overall_score=sub.overall_score,
         dataset_feasibility=sub.dataset_feasibility,
         summary=sub.summary,
+        rag_match_status=sub.rag_match_status or rag_eval_data.get("Match Status"),
+        rag_evaluation=rag_eval_data,
+        rag_evidence=safe_json(sub.rag_evidence, rag_eval_data.get("Key Evidence Found", [])),
+        rag_missing_requirements=safe_json(sub.rag_missing_requirements, rag_eval_data.get("Missing Requirements", [])),
         processing_time_seconds=sub.processing_time_seconds,
         uploaded_at=sub.uploaded_at,
         processed_at=sub.processed_at,

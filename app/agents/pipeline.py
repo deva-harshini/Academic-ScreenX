@@ -6,13 +6,15 @@ from app.agents.novelty import NoveltyAssessor
 from app.agents.critic import TechnicalCritic
 from app.agents.base import logger
 from app.schemas import PipelineEvaluation, ComplianceResult, NoveltyResult, CriticResult
+from app.services.ai_evaluator import evaluate_document
 
 class MultiAgentPipeline:
     """
-    Orchestrates the 3-Stage Autonomous Paper Screening Pipeline:
+    Orchestrates the Autonomous Paper Screening Pipeline:
     Stage 1: Compliance Auditor (Structure, Word Count 250-500, Mandatory Sections)
     Stage 2: Novelty Assessor (Methodology Extraction & Web Duplicate Detection)
     Stage 3: Technical Critic (1-10 Scoring, Dataset Feasibility, 3-Sentence Summary)
+    Layer 4: AI RAG Document Evaluator (LangChain Vector Indexing & Criteria Retrieval)
     """
     def __init__(self):
         self.stage1_compliance = ComplianceAuditor()
@@ -22,7 +24,7 @@ class MultiAgentPipeline:
     def process_pdf(self, pdf_path: str, fallback_title: Optional[str] = None) -> PipelineEvaluation:
         start_time = time.time()
         path_obj = Path(pdf_path)
-        logger.info(f"Starting Multi-Agent Evaluation for: {path_obj.name}")
+        logger.info(f"Starting Multi-Agent & RAG Evaluation for: {path_obj.name}")
 
         try:
             # Stage 1: Compliance Auditor
@@ -44,6 +46,18 @@ class MultiAgentPipeline:
             stage3_out = self.stage3_critic.evaluate(context)
             context["critic"] = stage3_out
 
+            # Layer 4: AI RAG Document Evaluator
+            logger.info("Executing AI RAG Document Evaluation Layer...")
+            try:
+                rag_out = evaluate_document(str(path_obj))
+            except Exception as rag_err:
+                logger.warning(f"RAG evaluation encountered warning: {rag_err}")
+                rag_out = {
+                    "Match Status": "Needs Review",
+                    "Key Evidence Found": [],
+                    "Missing Requirements": [str(rag_err)]
+                }
+
             elapsed_time = round(time.time() - start_time, 2)
             final_status = stage3_out.get("final_status", "revision")
 
@@ -54,6 +68,7 @@ class MultiAgentPipeline:
                 compliance=ComplianceResult(**stage1_out),
                 novelty=NoveltyResult(**stage2_out),
                 critic=CriticResult(**stage3_out),
+                rag_evaluation=rag_out,
                 processing_time_seconds=elapsed_time,
                 error_message=None
             )
@@ -86,6 +101,7 @@ class MultiAgentPipeline:
                 compliance=fallback_compliance,
                 novelty=None,
                 critic=None,
+                rag_evaluation=None,
                 processing_time_seconds=elapsed_time,
                 error_message=str(e)
             )

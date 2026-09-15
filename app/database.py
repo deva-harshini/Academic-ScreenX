@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.config import settings
 
@@ -28,6 +28,24 @@ def init_db():
         import app.models  # Populate Base.metadata
         Base.metadata.create_all(bind=engine)
         
+        # Ensure new RAG columns exist on older SQLite databases
+        try:
+            with engine.connect() as conn:
+                inspector = inspect(engine)
+                if "submissions" in inspector.get_table_names():
+                    cols = [c["name"] for c in inspector.get_columns("submissions")]
+                    if "rag_evaluation" not in cols:
+                        conn.execute(text("ALTER TABLE submissions ADD COLUMN rag_evaluation TEXT DEFAULT '{}'"))
+                    if "rag_match_status" not in cols:
+                        conn.execute(text("ALTER TABLE submissions ADD COLUMN rag_match_status VARCHAR(50)"))
+                    if "rag_evidence" not in cols:
+                        conn.execute(text("ALTER TABLE submissions ADD COLUMN rag_evidence TEXT DEFAULT '[]'"))
+                    if "rag_missing_requirements" not in cols:
+                        conn.execute(text("ALTER TABLE submissions ADD COLUMN rag_missing_requirements TEXT DEFAULT '[]'"))
+                    conn.commit()
+        except Exception:
+            pass
+
         # Seed default faculty user if not exists
         db = SessionLocal()
         try:
