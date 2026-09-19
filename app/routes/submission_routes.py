@@ -284,7 +284,7 @@ def get_submission_report(submission_id: int, db: Session = Depends(get_db)):
     )
 
 @router.delete("/{submission_id}")
-def delete_submission(submission_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def delete_submission(submission_id: int, db: Session = Depends(get_db), user: Optional[User] = Depends(get_current_user_optional)):
     sub = db.query(Submission).filter(Submission.id == submission_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found.")

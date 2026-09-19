@@ -57,7 +57,7 @@ def login(credentials: UserLogin, response: Response, db: Session = Depends(get_
 
     return Token(access_token=token_str, user=UserResponse.model_validate(user))
 
-@router.post("/logout")
+@router.api_route("/logout", methods=["GET", "POST"])
 def logout(response: Response):
     response.delete_cookie("access_token")
     return {"message": "Successfully logged out."}

@@ -155,3 +155,9 @@ def load_sample_proposals(background_tasks: BackgroundTasks, db: Session = Depen
         "message": f"Successfully queued {len(queued)} sample proposal(s) for multi-agent evaluation.",
         "ids": queued
     }
+
+@router.api_route("/logout", methods=["GET", "POST"])
+def logout_view():
+    resp = RedirectResponse(url="/login", status_code=302)
+    resp.delete_cookie("access_token")
+    return resp

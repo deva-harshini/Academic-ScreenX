@@ -42,16 +42,25 @@ async def vercel_path_normalizer(request: Request, call_next):
     """
     Normalizes request paths when running on Vercel Serverless where internal rewrites
     or framework routing prefix '/api/index.py' or '/fastapi' into the ASGI scope path.
-    Uses 'x-matched-path' or 'x-forwarded-uri' headers when provided by Vercel edge router.
+    Vercel sends the client-invoked path in 'x-invoke-path', 'x-original-url', or 'x-forwarded-uri'.
+    Do NOT use 'x-matched-path' because on rewrite rules it returns the destination match ('/').
     """
-    matched_path = request.headers.get("x-matched-path") or request.headers.get("x-forwarded-uri")
-    if matched_path:
-        clean_path = matched_path.split("?")[0]
-        request.scope["path"] = clean_path
+    invoke_path = (
+        request.headers.get("x-invoke-path")
+        or request.headers.get("x-original-url")
+        or request.headers.get("x-forwarded-uri")
+    )
+    if invoke_path:
+        clean_path = invoke_path.split("?")[0]
+        if clean_path:
+            request.scope["path"] = clean_path
     else:
         path = request.scope.get("path", "")
         if path.startswith("/api/index.py"):
             norm = path[len("/api/index.py"):]
+            request.scope["path"] = norm if norm else "/"
+        elif path.startswith("/api/index"):
+            norm = path[len("/api/index"):]
             request.scope["path"] = norm if norm else "/"
         elif path.startswith("/fastapi"):
             norm = path[len("/fastapi"):]
