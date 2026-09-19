@@ -42,7 +42,57 @@
         }
     </script>
     
-    <!-- Custom Minimal Styles -->
+    <!-- Inline Design System Styles -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+        :root {
+          --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          --font-mono: 'JetBrains Mono', monospace;
+          --bg-app: #f8fafc;
+          --bg-card: #ffffff;
+          --bg-subtle: #f1f5f9;
+          --border-subtle: #e2e8f0;
+        }
+
+        body {
+          font-family: var(--font-sans);
+          background-color: var(--bg-app);
+          color: #1e293b;
+          min-height: 100vh;
+          letter-spacing: -0.01em;
+        }
+
+        .bento-card {
+          background: var(--bg-card);
+          border: 1px solid var(--border-subtle);
+          border-radius: 0.875rem;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .bento-card:hover {
+          border-color: #cbd5e1;
+        }
+
+        @keyframes subtle-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.45; }
+        }
+
+        .pulse-subtle {
+          animation: subtle-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes modal-in {
+          from { opacity: 0; transform: scale(0.97) translateY(8px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .modal-enter {
+          animation: modal-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
     <link rel="stylesheet" href="/static/css/custom.css">
     {% block head %}{% endblock %}
 </head>
@@ -106,6 +156,8 @@
             <p class="text-[11px] text-slate-400">Stage 1: Compliance • Stage 2: Novelty • Stage 3: Technical Critic</p>
         </div>
     </footer>
+
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
 
     <script>
         async function handleLogout() {
