@@ -122,7 +122,7 @@ def test_api_endpoints():
         # Auth Login
         login_resp = client.post(
             "/api/auth/login",
-            json={"email": "faculty@university.edu", "password": "admin123"}
+            json={"email": "faculty@university.edu", "password": "ASX_Faculty#2026!Pass"}
         )
         assert login_resp.status_code == 200
         token = login_resp.json()["access_token"]

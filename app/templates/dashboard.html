@@ -485,110 +485,152 @@ async function loadSubmissions() {
     }
 }
 
+function renderSubmissionRowHtml(sub) {
+    let statusBadge = '';
+    if (sub.status === 'approved') {
+        statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">✓ Approved</span>`;
+    } else if (sub.status === 'revision') {
+        statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-sm">⚠ Needs Revision</span>`;
+    } else if (sub.status === 'flagged') {
+        statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">✗ Flagged Novelty</span>`;
+    } else if (sub.status === 'processing') {
+        statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-sm flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping"></span> Processing</span>`;
+    } else {
+        statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">Queued</span>`;
+    }
+
+    const dateStr = new Date(sub.uploaded_at).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+
+    let ragTag = '';
+    if (sub.rag_match_status === 'PASS') {
+        ragTag = `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200" title="RAG Criteria Met">RAG Match</span>`;
+    } else if (sub.rag_match_status === 'FAIL') {
+        ragTag = `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200" title="RAG Missing Requirements">RAG Gaps</span>`;
+    }
+
+    return `
+        <td class="px-4 py-3.5">
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 text-slate-600 font-bold text-xs mt-0.5 shadow-sm">
+                    PDF
+                </div>
+                <div class="min-w-0 flex-1 space-y-0.5">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button onclick="openReportModal(${sub.id})" class="text-xs font-bold text-slate-900 hover:text-blue-600 truncate text-left transition">
+                            ${escapeHtml(sub.title || sub.pdf_filename)}
+                        </button>
+                        ${ragTag}
+                    </div>
+                    <div class="flex items-center gap-2 text-[10px] text-slate-500 flex-wrap">
+                        <span>${escapeHtml(sub.student_name || 'Student Researcher')}</span>
+                        <span>•</span>
+                        <span>${sub.file_size_kb || 0} KB</span>
+                        <span>•</span>
+                        <span>${dateStr}</span>
+                    </div>
+                </div>
+            </div>
+        </td>
+        <td class="px-4 py-3.5 whitespace-nowrap">
+            ${statusBadge}
+        </td>
+        <td class="px-4 py-3.5 whitespace-nowrap">
+            <div class="text-xs font-bold ${sub.compliance_score >= 8 ? 'text-emerald-700' : sub.compliance_score >= 5 ? 'text-amber-700' : 'text-slate-500'}">
+                ${sub.compliance_score > 0 ? sub.compliance_score.toFixed(1) + ' / 10' : '—'}
+            </div>
+            <div class="text-[10px] text-slate-500">${sub.word_count || 0} words</div>
+        </td>
+        <td class="px-4 py-3.5 whitespace-nowrap">
+            <div class="text-xs font-bold ${sub.novelty_score >= 7 ? 'text-emerald-700' : sub.novelty_score >= 4 ? 'text-amber-700' : 'text-rose-700'}">
+                ${sub.novelty_score > 0 ? sub.novelty_score.toFixed(1) + ' / 10' : '—'}
+            </div>
+            <div class="text-[10px] text-slate-500 truncate max-w-[120px]">${escapeHtml(sub.novelty_verdict || 'Assessing...')}</div>
+        </td>
+        <td class="px-4 py-3.5 whitespace-nowrap">
+            <div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg ${sub.overall_score >= 7 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : sub.overall_score >= 4 ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-slate-100 text-slate-700'} font-bold text-xs shadow-sm">
+                <span>${sub.overall_score > 0 ? sub.overall_score.toFixed(1) : '—'}</span>
+                <span class="text-[10px] font-normal opacity-70">/ 10</span>
+            </div>
+        </td>
+        <td class="px-4 py-3.5 whitespace-nowrap text-xs text-slate-500 font-mono">
+            ${sub.processing_time_seconds ? sub.processing_time_seconds.toFixed(2) + 's' : '—'}
+        </td>
+        <td class="px-4 py-3.5 whitespace-nowrap text-right text-xs">
+            <div class="flex items-center justify-end gap-1.5">
+                <button onclick="openReportModal(${sub.id})" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition border border-slate-200 text-[11px]">
+                    Dossier
+                </button>
+                <button onclick="deleteSubmission(${sub.id})" class="p-1 rounded text-slate-400 hover:text-rose-600 transition" title="Delete submission">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                </button>
+            </div>
+        </td>
+    `;
+}
+
 function renderSubmissionsTable(submissions) {
     const tableBody = document.getElementById('submissions-table-body');
+    const emptyState = document.getElementById('empty-state');
     if (!tableBody) return;
 
-    tableBody.innerHTML = submissions.map(sub => {
-        let statusBadge = '';
+    if (!submissions || submissions.length === 0) {
+        tableBody.innerHTML = '';
+        if (emptyState) emptyState.classList.remove('hidden');
+        return;
+    }
 
-        if (sub.status === 'approved') {
-            statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">✓ Approved</span>`;
-        } else if (sub.status === 'revision') {
-            statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-sm">⚠ Needs Revision</span>`;
-        } else if (sub.status === 'flagged') {
-            statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">✗ Flagged Novelty</span>`;
-        } else if (sub.status === 'processing') {
-            statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-sm flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping"></span> Processing</span>`;
-        } else {
-            statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">Queued</span>`;
+    if (emptyState) emptyState.classList.add('hidden');
+
+    const newIdSet = new Set(submissions.map(s => String(s.id)));
+    
+    // Remove deleted rows smoothly
+    const existingRows = Array.from(tableBody.querySelectorAll('tr[id^="sub-row-"]'));
+    existingRows.forEach(row => {
+        const rowId = row.id.replace('sub-row-', '');
+        if (!newIdSet.has(rowId)) {
+            row.remove();
         }
+    });
 
-        const dateStr = new Date(sub.uploaded_at).toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-
+    // Reconcile and update existing rows or append new rows
+    submissions.forEach((sub, index) => {
+        const rowId = `sub-row-${sub.id}`;
+        let row = document.getElementById(rowId);
         const isProcessing = sub.status === 'processing' || sub.status === 'pending';
+        const signature = `${sub.status}_${sub.overall_score}_${sub.compliance_score}_${sub.novelty_score}_${sub.rag_match_status}_${sub.title}`;
 
-        return `
-            <tr class="hover:bg-slate-50/80 transition group ${isProcessing ? 'pulse-subtle' : ''}">
-                <td class="px-4 py-3.5">
-                    <div class="flex items-start gap-3">
-                        <div class="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-white group-hover:shadow-sm transition">
-                            <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                            </svg>
-                        </div>
-                        <div class="space-y-0.5 min-w-0">
-                            <a href="javascript:void(0)" onclick="openReportModal(${sub.id})" class="font-bold text-xs text-slate-900 hover:text-blue-600 transition block truncate max-w-xs md:max-w-md">
-                                ${escapeHtml(sub.title)}
-                            </a>
-                            <div class="flex items-center gap-2 text-[11px] text-slate-400">
-                                <span>${escapeHtml(sub.student_name || 'Anonymous Applicant')}</span>
-                                <span>•</span>
-                                <span class="font-mono">${escapeHtml(sub.pdf_filename)}</span>
-                            </div>
-                        </div>
-                    </div>
-                </td>
+        if (!row) {
+            row = document.createElement('tr');
+            row.id = rowId;
+            row.className = `hover:bg-slate-50/80 transition group ${isProcessing ? 'pulse-subtle' : ''}`;
+            row.dataset.signature = signature;
+            row.innerHTML = renderSubmissionRowHtml(sub);
 
-                <td class="px-4 py-3.5 whitespace-nowrap">
-                    ${statusBadge}
-                    <div class="text-[10px] text-slate-400 font-mono mt-0.5">${sub.current_stage || 'Done'}</div>
-                </td>
-
-                <td class="px-4 py-3.5 whitespace-nowrap text-center">
-                    <div class="inline-flex items-baseline gap-1">
-                        <span class="text-sm font-bold ${sub.compliance_score >= 8 ? 'text-emerald-600' : 'text-slate-700'}">${sub.compliance_score ? sub.compliance_score.toFixed(1) : '-'}</span>
-                        <span class="text-[10px] text-slate-400">/10</span>
-                    </div>
-                </td>
-
-                <td class="px-4 py-3.5 whitespace-nowrap text-center">
-                    <div class="inline-flex items-baseline gap-1">
-                        <span class="text-sm font-bold ${sub.novelty_score >= 7 ? 'text-blue-600' : sub.novelty_score > 0 ? 'text-amber-600' : 'text-slate-400'}">${sub.novelty_score ? sub.novelty_score.toFixed(1) : '-'}</span>
-                        <span class="text-[10px] text-slate-400">/10</span>
-                    </div>
-                </td>
-
-                <td class="px-4 py-3.5 whitespace-nowrap text-center">
-                    <div class="inline-flex items-baseline gap-1">
-                        <span class="text-sm font-black ${sub.overall_score >= 7.5 ? 'text-emerald-700' : sub.overall_score >= 5 ? 'text-slate-800' : 'text-rose-600'}">${sub.overall_score ? sub.overall_score.toFixed(1) : '-'}</span>
-                        <span class="text-[10px] text-slate-400">/10</span>
-                    </div>
-                </td>
-
-                <td class="px-4 py-3.5 whitespace-nowrap text-right">
-                    <div class="text-[11px] font-mono text-slate-500">${dateStr}</div>
-                    <div class="text-[10px] text-slate-400 font-mono">${sub.processing_time_seconds ? `${sub.processing_time_seconds}s` : ''}</div>
-                </td>
-
-                <td class="px-4 py-3.5 whitespace-nowrap text-right text-xs">
-                    <div class="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition">
-                        <button onclick="openReportModal(${sub.id})" title="View Evaluation Dossier" class="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 rounded-md transition">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                            </svg>
-                        </button>
-                        <a href="/report/${sub.id}" target="_blank" title="Open Full Report" class="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 rounded-md transition">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                            </svg>
-                        </a>
-                        <button onclick="deleteSubmission(${sub.id})" title="Delete Submission" class="p-1.5 text-rose-400 hover:text-rose-700 hover:bg-rose-50 rounded-md transition">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                            </svg>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
-    }).join('');
+            const currentChildren = tableBody.children;
+            if (index < currentChildren.length) {
+                tableBody.insertBefore(row, currentChildren[index]);
+            } else {
+                tableBody.appendChild(row);
+            }
+        } else {
+            if (row.dataset.signature !== signature) {
+                row.dataset.signature = signature;
+                row.className = `hover:bg-slate-50/80 transition group ${isProcessing ? 'pulse-subtle' : ''}`;
+                row.innerHTML = renderSubmissionRowHtml(sub);
+            }
+            const currentChildren = tableBody.children;
+            if (currentChildren[index] !== row) {
+                tableBody.insertBefore(row, currentChildren[index] || null);
+            }
+        }
+    });
 }
 
 async function openReportModal(id) {

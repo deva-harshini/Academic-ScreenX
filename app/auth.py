@@ -83,7 +83,7 @@ def ensure_default_faculty_user(db: Session):
         faculty_user = User(
             email=default_email,
             name="Dr. Eleanor Vance (Faculty Chair)",
-            password_hash=get_password_hash("admin123"),
+            password_hash=get_password_hash("ASX_Faculty#2026!Pass"),
             role=UserRole.FACULTY.value
         )
         db.add(faculty_user)

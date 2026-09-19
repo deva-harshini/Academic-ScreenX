@@ -54,9 +54,9 @@ def init_db():
             
             default_email = "faculty@university.edu"
             existing = db.query(User).filter(User.email == default_email).first()
+            salt = bcrypt.gensalt()
+            pw_hash = bcrypt.hashpw(b"ASX_Faculty#2026!Pass", salt).decode("utf-8")
             if not existing:
-                salt = bcrypt.gensalt()
-                pw_hash = bcrypt.hashpw(b"admin123", salt).decode("utf-8")
                 faculty_user = User(
                     email=default_email,
                     name="Dr. Eleanor Vance (Faculty Chair)",
@@ -64,6 +64,9 @@ def init_db():
                     role=UserRole.FACULTY.value
                 )
                 db.add(faculty_user)
+                db.commit()
+            else:
+                existing.password_hash = pw_hash
                 db.commit()
         finally:
             db.close()

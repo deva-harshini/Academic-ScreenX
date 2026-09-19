@@ -9,7 +9,7 @@ assert r.status_code == 200, f"Failed /login: {r.status_code}"
 print("   -> /login returned HTTP 200 OK")
 
 print("2. Testing Login Auth...")
-r = client.post("/api/auth/login", json={"email": "faculty@university.edu", "password": "admin123"})
+r = client.post("/api/auth/login", json={"email": "faculty@university.edu", "password": "ASX_Faculty#2026!Pass"})
 assert r.status_code == 200, f"Login failed: {r.text}"
 token = r.json()["access_token"]
 headers = {"Authorization": f"Bearer {token}"}

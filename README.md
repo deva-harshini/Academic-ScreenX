@@ -245,7 +245,7 @@ The application automatically seeds a default faculty committee account on start
 | Field | Value |
 | :--- | :--- |
 | **Email** | `faculty@university.edu` |
-| **Password** | `admin123` |
+| **Password** | `ASX_Faculty#2026!Pass` |
 | **Role** | Faculty Committee Chair |
 
 > **Note**: A 1-click **"⚡ Auto-Fill Faculty Demo Credentials"** button is provided on the login page for effortless evaluation.
