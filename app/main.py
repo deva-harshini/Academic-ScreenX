@@ -1,3 +1,4 @@
+import urllib.parse
 import sys
 import os
 from pathlib import Path
@@ -40,31 +41,46 @@ app = FastAPI(
 @app.middleware("http")
 async def vercel_path_normalizer(request: Request, call_next):
     """
-    Normalizes request paths when running on Vercel Serverless where internal rewrites
-    or framework routing prefix '/api/index.py' or '/fastapi' into the ASGI scope path.
-    Vercel sends the client-invoked path in 'x-invoke-path', 'x-original-url', or 'x-forwarded-uri'.
-    Do NOT use 'x-matched-path' because on rewrite rules it returns the destination match ('/').
+    Normalizes request paths when running on Vercel Serverless.
+    Vercel provides the rewritten client path in 'x-now-route-matches' (e.g. 1=demo%2Fload-samples),
+    'x-invoke-path', 'x-original-url', or raw ASGI scope path.
     """
-    invoke_path = (
-        request.headers.get("x-invoke-path")
-        or request.headers.get("x-original-url")
-        or request.headers.get("x-forwarded-uri")
-    )
-    if invoke_path:
-        clean_path = invoke_path.split("?")[0]
-        if clean_path:
-            request.scope["path"] = clean_path
-    else:
-        path = request.scope.get("path", "")
-        if path.startswith("/api/index.py"):
-            norm = path[len("/api/index.py"):]
-            request.scope["path"] = norm if norm else "/"
-        elif path.startswith("/api/index"):
-            norm = path[len("/api/index"):]
-            request.scope["path"] = norm if norm else "/"
-        elif path.startswith("/fastapi"):
-            norm = path[len("/fastapi"):]
-            request.scope["path"] = norm if norm else "/"
+    # 1. Check Vercel rewrite capture groups in 'x-now-route-matches'
+    route_matches = request.headers.get("x-now-route-matches")
+    extracted_path = None
+    if route_matches:
+        try:
+            parsed = urllib.parse.parse_qs(route_matches)
+            for k in ["1", "path", "match", "0"]:
+                if k in parsed and parsed[k]:
+                    val = parsed[k][0]
+                    extracted_path = "/" + val.lstrip("/")
+                    break
+        except Exception:
+            pass
+
+    # 2. Check direct invoked path headers
+    if not extracted_path:
+        for h in ["x-invoke-path", "x-original-url", "x-forwarded-uri", "x-vercel-path", "x-rewrite-url"]:
+            val = request.headers.get(h)
+            if val:
+                clean = val.split("?")[0].strip()
+                if clean and clean not in ("/api/index.py", "/fastapi", "/api/index"):
+                    extracted_path = clean
+                    break
+
+    # 3. Check ASGI scope path prefixes
+    if not extracted_path:
+        scope_path = request.scope.get("path", "")
+        for prefix in ["/api/index.py", "/api/index", "/fastapi"]:
+            if scope_path.startswith(prefix):
+                norm = scope_path[len(prefix):]
+                extracted_path = norm if norm else "/"
+                break
+        if not extracted_path:
+            extracted_path = scope_path or "/"
+
+    request.scope["path"] = extracted_path
     return await call_next(request)
 
 # CORS
