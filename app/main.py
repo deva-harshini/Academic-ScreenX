@@ -36,6 +36,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Vercel Serverless ASGI Path Normalizer Middleware
+@app.middleware("http")
+async def vercel_path_normalizer(request: Request, call_next):
+    """
+    Normalizes request paths when running on Vercel Serverless where internal rewrites
+    or framework routing prefix '/api/index.py' or '/fastapi' into the ASGI scope path.
+    """
+    path = request.scope.get("path", "")
+    if path.startswith("/api/index.py"):
+        norm = path[len("/api/index.py"):]
+        request.scope["path"] = norm if norm else "/"
+    elif path.startswith("/fastapi"):
+        norm = path[len("/fastapi"):]
+        request.scope["path"] = norm if norm else "/"
+    return await call_next(request)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
