@@ -54,6 +54,42 @@ Academic-ScreenX is an autonomous multi-agent paper screening and document evalu
 
 ---
 
+## Platform Interface & Screenshots
+
+<div align="center">
+
+### 1. Faculty Dashboard & Analytics Overview
+![Faculty Dashboard & Analytics](https://raw.githubusercontent.com/deva-harshini/Academic-ScreenX/main/docs/images/dashboard_overview.jpg)
+*Central faculty management interface displaying real-time screening metrics, batch upload dropzone, and system status indicators.*
+
+<br/>
+
+### 2. Live Submissions Triage & Filtering
+![Submissions Table & Triage](https://raw.githubusercontent.com/deva-harshini/Academic-ScreenX/main/docs/images/submissions_table.jpg)
+*Sortable proposals data table categorized with color-coded triage statuses (`Approved`, `Needs Revision`, `Flagged`) and direct action buttons.*
+
+<br/>
+
+### 3. Approved Proposal Evaluation Dossier
+![Approved Proposal Dossier](https://raw.githubusercontent.com/deva-harshini/Academic-ScreenX/main/docs/images/dossier_approved.jpg)
+*Detailed review modal for a top-tier submission showing full compliance validation, high novelty score, and a 3-sentence executive recommendation.*
+
+<br/>
+
+### 4. Format Defect & Revision Dossier
+![Format Defect Dossier](https://raw.githubusercontent.com/deva-harshini/Academic-ScreenX/main/docs/images/dossier_revision.jpg)
+*Evaluation modal identifying structural formatting violations (e.g., word count limit exceeded) while highlighting underlying idea novelty.*
+
+<br/>
+
+### 5. Low Novelty & Duplicate Warning Dossier
+![Low Novelty Dossier](https://raw.githubusercontent.com/deva-harshini/Academic-ScreenX/main/docs/images/dossier_flagged.jpg)
+*Flagged submission dossier detecting generic/replicated implementations (e.g., standard MNIST CNNs) with matched literature baseline references.*
+
+</div>
+
+---
+
 ## Project & Code Structure
 
 ### **AI Services & RAG Evaluator Layer** 
