@@ -80,12 +80,23 @@ def load_sample_proposals(background_tasks: BackgroundTasks, db: Session = Depen
         "02_copied_idea.pdf",
         "03_innovative_idea.pdf"
     ]
+
+    try:
+        settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
     
     queued = []
     for s_name in sample_files:
+        # Search possible sample locations
         src = settings.SAMPLE_DIR / s_name
         if not src.exists():
-            continue
+            # Try alternate paths
+            alt = BASE_DIR / "sample_pdfs" / s_name
+            if alt.exists():
+                src = alt
+            else:
+                continue
 
         dest_name = f"demo_{uuid.uuid4().hex[:6]}_{s_name}"
         dest_path = settings.UPLOAD_DIR / dest_name
@@ -110,4 +121,37 @@ def load_sample_proposals(background_tasks: BackgroundTasks, db: Session = Depen
         background_tasks.add_task(process_submission_task, submission.id)
         queued.append(submission.id)
 
-    return {"message": f"Queued {len(queued)} sample proposals for evaluation.", "ids": queued}
+    if not queued:
+        # If files were not found on disk, dynamically generate them
+        try:
+            from tests.generate_samples import generate_all_samples
+            generate_all_samples()
+            for s_name in sample_files:
+                src = settings.SAMPLE_DIR / s_name
+                if src.exists():
+                    dest_name = f"demo_{uuid.uuid4().hex[:6]}_{s_name}"
+                    dest_path = settings.UPLOAD_DIR / dest_name
+                    shutil.copyfile(src, dest_path)
+                    file_size_kb = round(os.path.getsize(dest_path) / 1024, 2)
+                    initial_title = s_name.replace(".pdf", "").replace("_", " ").title()
+                    submission = Submission(
+                        title=initial_title,
+                        student_name="Pending Extraction...",
+                        pdf_filename=s_name,
+                        file_path=str(dest_path),
+                        file_size_kb=file_size_kb,
+                        status=SubmissionStatus.PENDING.value,
+                        current_stage="Enqueued in Agent Pipeline"
+                    )
+                    db.add(submission)
+                    db.commit()
+                    db.refresh(submission)
+                    background_tasks.add_task(process_submission_task, submission.id)
+                    queued.append(submission.id)
+        except Exception:
+            pass
+
+    return {
+        "message": f"Successfully queued {len(queued)} sample proposal(s) for multi-agent evaluation.",
+        "ids": queued
+    }

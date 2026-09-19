@@ -19,18 +19,12 @@ function initDashboard() {
 }
 
 function setupEventListeners() {
-    // Filter buttons
+    // Filter buttons click handler
     const filterButtons = document.querySelectorAll('.filter-btn');
     filterButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            filterButtons.forEach(b => b.classList.remove('bg-slate-900', 'text-white', 'shadow-sm'));
-            filterButtons.forEach(b => b.classList.add('bg-white', 'text-slate-600', 'hover:bg-slate-50'));
-            
-            btn.classList.add('bg-slate-900', 'text-white', 'shadow-sm');
-            btn.classList.remove('bg-white', 'text-slate-600', 'hover:bg-slate-50');
-            
-            currentFilter = btn.dataset.filter || 'all';
-            loadSubmissions();
+        btn.addEventListener('click', () => {
+            const filter = btn.dataset.status || btn.dataset.filter || 'all';
+            setFilter(filter);
         });
     });
 
@@ -67,15 +61,73 @@ function setupEventListeners() {
     }
 }
 
+function setFilter(filter) {
+    currentFilter = filter || 'all';
+    const filterButtons = document.querySelectorAll('.filter-btn');
+    filterButtons.forEach(btn => {
+        const btnStatus = btn.dataset.status || btn.dataset.filter || 'all';
+        if (btnStatus === currentFilter) {
+            btn.className = 'filter-btn px-3 py-1.5 rounded-md font-semibold transition bg-white text-slate-900 shadow-sm';
+        } else {
+            btn.className = 'filter-btn px-3 py-1.5 rounded-md font-medium transition text-slate-600 hover:text-slate-900';
+        }
+    });
+    loadSubmissions();
+}
+
+async function loadDemoSamples() {
+    const btn = document.getElementById('btn-load-demo');
+    let originalHtml = '';
+    if (btn) {
+        originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `
+            <svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Loading 3 Papers...</span>
+        `;
+    }
+
+    try {
+        const res = await fetch('/demo/load-samples', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || 'Failed to load sample papers.');
+        }
+
+        const data = await res.json();
+        showToast(data.message || 'Queued 3 sample papers for evaluation.', 'success');
+        
+        // Immediately reload stats and submissions list
+        await loadDashboardStats();
+        await loadSubmissions();
+    } catch (err) {
+        showToast(err.message || 'Error loading sample papers.', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+}
+
 function setupDropZone() {
-    const dropZone = document.getElementById('drop-zone');
+    const dropZone = document.getElementById('dropzone') || document.getElementById('drop-zone');
     if (!dropZone) return;
 
     ['dragenter', 'dragover'].forEach(eventName => {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropZone.classList.add('border-slate-800', 'bg-slate-50/80');
+            dropZone.classList.add('border-slate-800', 'bg-slate-100');
         }, false);
     });
 
@@ -83,7 +135,7 @@ function setupDropZone() {
         dropZone.addEventListener(eventName, (e) => {
             e.preventDefault();
             e.stopPropagation();
-            dropZone.classList.remove('border-slate-800', 'bg-slate-50/80');
+            dropZone.classList.remove('border-slate-800', 'bg-slate-100');
         }, false);
     });
 
@@ -110,7 +162,8 @@ async function uploadFiles(files) {
         formData.append('files', file);
     });
 
-    showUploadProgress(true, `Uploading ${validFiles.length} proposal document(s)...`);
+    const statusEl = document.getElementById('upload-status');
+    if (statusEl) statusEl.classList.remove('hidden');
 
     try {
         const response = await fetch('/api/submissions/upload', {
@@ -136,7 +189,7 @@ async function uploadFiles(files) {
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
-        showUploadProgress(false);
+        if (statusEl) statusEl.classList.add('hidden');
     }
 }
 
@@ -146,12 +199,27 @@ async function loadDashboardStats() {
         if (!res.ok) return;
         const stats = await res.json();
 
-        document.getElementById('stat-total').textContent = stats.total_uploaded;
-        document.getElementById('stat-approved').textContent = stats.approved_count;
-        document.getElementById('stat-approved-pct').textContent = `${stats.approved_pct}% acceptance`;
-        document.getElementById('stat-revision').textContent = stats.revision_count;
-        document.getElementById('stat-flagged').textContent = stats.flagged_count;
-        document.getElementById('stat-latency').textContent = `${stats.avg_processing_time}s`;
+        if (document.getElementById('stat-total')) {
+            document.getElementById('stat-total').textContent = stats.total_uploaded;
+        }
+        if (document.getElementById('stat-approved-pct')) {
+            document.getElementById('stat-approved-pct').textContent = `${stats.approved_pct}%`;
+        }
+        if (document.getElementById('stat-approved-count')) {
+            document.getElementById('stat-approved-count').textContent = `(${stats.approved_count} papers)`;
+        }
+        if (document.getElementById('stat-revision-count')) {
+            document.getElementById('stat-revision-count').textContent = stats.revision_count;
+        }
+        if (document.getElementById('stat-flagged-pct')) {
+            document.getElementById('stat-flagged-pct').textContent = `${stats.flagged_pct}%`;
+        }
+        if (document.getElementById('stat-flagged-count')) {
+            document.getElementById('stat-flagged-count').textContent = `(${stats.flagged_count} papers)`;
+        }
+        if (document.getElementById('stat-avg-time')) {
+            document.getElementById('stat-avg-time').textContent = `${stats.avg_processing_time}s`;
+        }
     } catch (e) {
         console.error('Failed to load stats', e);
     }
@@ -160,6 +228,7 @@ async function loadDashboardStats() {
 async function loadSubmissions() {
     const tableBody = document.getElementById('submissions-table-body');
     const emptyState = document.getElementById('empty-state');
+    if (!tableBody) return;
     
     try {
         let url = `/api/submissions/list?sort=${currentSort}`;
@@ -177,11 +246,11 @@ async function loadSubmissions() {
 
         if (data.length === 0) {
             tableBody.innerHTML = '';
-            emptyState.classList.remove('hidden');
+            if (emptyState) emptyState.classList.remove('hidden');
             return;
         }
 
-        emptyState.classList.add('hidden');
+        if (emptyState) emptyState.classList.add('hidden');
         renderSubmissionsTable(data);
     } catch (e) {
         console.error('Error loading submissions', e);
@@ -190,18 +259,19 @@ async function loadSubmissions() {
 
 function renderSubmissionsTable(submissions) {
     const tableBody = document.getElementById('submissions-table-body');
+    if (!tableBody) return;
+
     tableBody.innerHTML = submissions.map(sub => {
         let statusBadge = '';
-        let stageIndicator = '';
 
         if (sub.status === 'approved') {
-            statusBadge = `<span class="badge-approved">✓ Approved</span>`;
+            statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">✓ Approved</span>`;
         } else if (sub.status === 'revision') {
-            statusBadge = `<span class="badge-revision">⚠ Needs Revision</span>`;
+            statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-sm">⚠ Needs Revision</span>`;
         } else if (sub.status === 'flagged') {
-            statusBadge = `<span class="badge-flagged">✗ Flagged Novelty</span>`;
+            statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">✗ Flagged Novelty</span>`;
         } else if (sub.status === 'processing') {
-            statusBadge = `<span class="badge-processing"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping"></span> Processing</span>`;
+            statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-sm flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping"></span> Processing</span>`;
         } else {
             statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">Queued</span>`;
         }
@@ -217,7 +287,7 @@ function renderSubmissionsTable(submissions) {
 
         return `
             <tr class="hover:bg-slate-50/80 transition group ${isProcessing ? 'pulse-subtle' : ''}">
-                <td class="px-5 py-4">
+                <td class="px-4 py-3.5">
                     <div class="flex items-start gap-3">
                         <div class="w-8 h-8 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-white group-hover:shadow-sm transition">
                             <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -237,38 +307,38 @@ function renderSubmissionsTable(submissions) {
                     </div>
                 </td>
 
-                <td class="px-5 py-4 whitespace-nowrap">
+                <td class="px-4 py-3.5 whitespace-nowrap">
                     ${statusBadge}
                     <div class="text-[10px] text-slate-400 font-mono mt-0.5">${sub.current_stage || 'Done'}</div>
                 </td>
 
-                <td class="px-5 py-4 whitespace-nowrap text-center">
+                <td class="px-4 py-3.5 whitespace-nowrap text-center">
                     <div class="inline-flex items-baseline gap-1">
                         <span class="text-sm font-bold ${sub.compliance_score >= 8 ? 'text-emerald-600' : 'text-slate-700'}">${sub.compliance_score ? sub.compliance_score.toFixed(1) : '-'}</span>
                         <span class="text-[10px] text-slate-400">/10</span>
                     </div>
                 </td>
 
-                <td class="px-5 py-4 whitespace-nowrap text-center">
+                <td class="px-4 py-3.5 whitespace-nowrap text-center">
                     <div class="inline-flex items-baseline gap-1">
                         <span class="text-sm font-bold ${sub.novelty_score >= 7 ? 'text-blue-600' : sub.novelty_score > 0 ? 'text-amber-600' : 'text-slate-400'}">${sub.novelty_score ? sub.novelty_score.toFixed(1) : '-'}</span>
                         <span class="text-[10px] text-slate-400">/10</span>
                     </div>
                 </td>
 
-                <td class="px-5 py-4 whitespace-nowrap text-center">
+                <td class="px-4 py-3.5 whitespace-nowrap text-center">
                     <div class="inline-flex items-baseline gap-1">
                         <span class="text-sm font-black ${sub.overall_score >= 7.5 ? 'text-emerald-700' : sub.overall_score >= 5 ? 'text-slate-800' : 'text-rose-600'}">${sub.overall_score ? sub.overall_score.toFixed(1) : '-'}</span>
                         <span class="text-[10px] text-slate-400">/10</span>
                     </div>
                 </td>
 
-                <td class="px-5 py-4 whitespace-nowrap text-right">
+                <td class="px-4 py-3.5 whitespace-nowrap text-right">
                     <div class="text-[11px] font-mono text-slate-500">${dateStr}</div>
                     <div class="text-[10px] text-slate-400 font-mono">${sub.processing_time_seconds ? `${sub.processing_time_seconds}s` : ''}</div>
                 </td>
 
-                <td class="px-5 py-4 whitespace-nowrap text-right text-xs">
+                <td class="px-4 py-3.5 whitespace-nowrap text-right text-xs">
                     <div class="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition">
                         <button onclick="openReportModal(${sub.id})" title="View Evaluation Dossier" class="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-200/60 rounded-md transition">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -296,6 +366,8 @@ function renderSubmissionsTable(submissions) {
 async function openReportModal(id) {
     const modal = document.getElementById('report-modal');
     const modalContent = document.getElementById('modal-body-content');
+    if (!modal || !modalContent) return;
+
     modal.classList.remove('hidden');
 
     modalContent.innerHTML = `
@@ -319,7 +391,8 @@ async function openReportModal(id) {
 }
 
 function closeReportModal() {
-    document.getElementById('report-modal').classList.add('hidden');
+    const modal = document.getElementById('report-modal');
+    if (modal) modal.classList.add('hidden');
 }
 
 // Close on clicking backdrop
@@ -332,6 +405,7 @@ document.addEventListener('click', (e) => {
 
 function renderModalDetails(sub) {
     const modalContent = document.getElementById('modal-body-content');
+    if (!modalContent) return;
 
     let statusPill = '';
     if (sub.status === 'approved') {
@@ -526,18 +600,6 @@ async function deleteSubmission(id) {
         loadSubmissions();
     } catch (e) {
         showToast(e.message, 'error');
-    }
-}
-
-function showUploadProgress(show, text = '') {
-    const progressEl = document.getElementById('upload-progress');
-    const textEl = document.getElementById('upload-progress-text');
-    if (!progressEl) return;
-    if (show) {
-        textEl.textContent = text;
-        progressEl.classList.remove('hidden');
-    } else {
-        progressEl.classList.add('hidden');
     }
 }
 
