@@ -299,3 +299,9 @@ def delete_submission(submission_id: int, db: Session = Depends(get_db), user: O
     db.delete(sub)
     db.commit()
     return {"message": "Submission successfully removed."}
+
+@router.api_route("/demo/load-samples", methods=["GET", "POST"])
+@router.api_route("/api/demo/load-samples", methods=["GET", "POST"])
+def submission_demo_load_samples(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    from app.routes.web_routes import load_sample_proposals
+    return load_sample_proposals(background_tasks=background_tasks, db=db)

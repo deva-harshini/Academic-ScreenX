@@ -1,4 +1,4 @@
-// Academic-ScreenX Dashboard & Real-Time Funnel Controller
+// Academic-ScreenX Complete Inline Controller & Event Handlers
 
 let allSubmissions = [];
 let currentFilter = 'all';
@@ -19,16 +19,6 @@ function initDashboard() {
 }
 
 function setupEventListeners() {
-    // Filter buttons click handler
-    const filterButtons = document.querySelectorAll('.filter-btn');
-    filterButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const filter = btn.dataset.status || btn.dataset.filter || 'all';
-            setFilter(filter);
-        });
-    });
-
-    // Search input
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
         let debounceTimer;
@@ -41,7 +31,6 @@ function setupEventListeners() {
         });
     }
 
-    // Sort select
     const sortSelect = document.getElementById('sort-select');
     if (sortSelect) {
         sortSelect.addEventListener('change', (e) => {
@@ -50,11 +39,10 @@ function setupEventListeners() {
         });
     }
 
-    // File Input change
     const fileInput = document.getElementById('file-input');
     if (fileInput) {
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
+            if (e.target.files && e.target.files.length > 0) {
                 uploadFiles(Array.from(e.target.files));
             }
         });
@@ -82,7 +70,7 @@ async function loadDemoSamples() {
         originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = `
-            <svg class="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -93,9 +81,8 @@ async function loadDemoSamples() {
     try {
         const res = await fetch('/demo/load-samples', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            }
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin'
         });
 
         if (!res.ok) {
@@ -106,7 +93,6 @@ async function loadDemoSamples() {
         const data = await res.json();
         showToast(data.message || 'Queued 3 sample papers for evaluation.', 'success');
         
-        // Immediately reload stats and submissions list
         await loadDashboardStats();
         await loadSubmissions();
     } catch (err) {
@@ -141,17 +127,17 @@ function setupDropZone() {
 
     dropZone.addEventListener('drop', (e) => {
         const dt = e.dataTransfer;
-        const files = Array.from(dt.files).filter(f => f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.txt'));
+        const files = Array.from(dt.files).filter(f => f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.txt') || f.name.toLowerCase().endsWith('.md'));
         if (files.length > 0) {
             uploadFiles(files);
         } else {
-            showToast('Please upload PDF or TXT proposal files.', 'warning');
+            showToast('Please upload PDF, TXT, or MD proposal files.', 'warning');
         }
     }, false);
 }
 
 async function uploadFiles(files) {
-    const validFiles = files.filter(f => f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.txt'));
+    const validFiles = files.filter(f => f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.txt') || f.name.toLowerCase().endsWith('.md'));
     if (validFiles.length === 0) {
         showToast('Please select valid PDF or TXT files.', 'warning');
         return;
@@ -172,20 +158,18 @@ async function uploadFiles(files) {
         });
 
         if (!response.ok) {
-            const err = await response.json();
+            const err = await response.json().catch(() => ({}));
             throw new Error(err.detail || 'Upload failed');
         }
 
         const result = await response.json();
-        showToast(result.message, 'success');
+        showToast(result.message || 'Upload accepted.', 'success');
         
-        // Reset file input
         const fileInput = document.getElementById('file-input');
         if (fileInput) fileInput.value = '';
 
-        // Reload data
-        loadDashboardStats();
-        loadSubmissions();
+        await loadDashboardStats();
+        await loadSubmissions();
     } catch (error) {
         showToast(error.message, 'error');
     } finally {
@@ -395,7 +379,6 @@ function closeReportModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-// Close on clicking backdrop
 document.addEventListener('click', (e) => {
     const modal = document.getElementById('report-modal');
     if (e.target === modal) {
@@ -444,7 +427,6 @@ function renderModalDetails(sub) {
         `).join('')
         : '<p class="text-[11px] text-slate-500 italic p-3 bg-slate-50 rounded-lg border border-slate-200">No duplicate or saturated literature matches detected.</p>';
 
-    // RAG Evidence & Requirements
     const ragEvidenceList = (sub.rag_evidence && sub.rag_evidence.length > 0)
         ? sub.rag_evidence.map(e => `<li>${escapeHtml(e)}</li>`).join('')
         : '<li class="italic text-slate-400">Baseline research proposal content extracted.</li>';

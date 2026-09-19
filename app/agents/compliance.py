@@ -34,6 +34,14 @@ class ComplianceAuditor(BaseAgent):
         super().__init__(name="Compliance Auditor", role="Stage 1 Structural & Format Validator")
 
     def extract_text_from_pdf(self, pdf_path: Path) -> str:
+        pdf_path = Path(pdf_path)
+        if pdf_path.suffix.lower() in (".txt", ".md"):
+            try:
+                with open(pdf_path, "r", encoding="utf-8", errors="ignore") as f:
+                    return f.read().strip()
+            except Exception as e:
+                logger.error(f"Error reading text file {pdf_path}: {e}")
+                raise ValueError(f"Failed to read text file: {str(e)}")
         text = ""
         try:
             reader = PdfReader(str(pdf_path))

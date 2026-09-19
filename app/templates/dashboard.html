@@ -325,7 +325,8 @@ async function loadDemoSamples() {
     try {
         const res = await fetch('/demo/load-samples', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin'
         });
 
         if (!res.ok) {

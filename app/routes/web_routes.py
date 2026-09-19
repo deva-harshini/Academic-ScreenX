@@ -69,7 +69,8 @@ def report_page(submission_id: int, request: Request, user: User = Depends(get_c
         }
     )
 
-@router.post("/demo/load-samples")
+@router.api_route("/demo/load-samples", methods=["GET", "POST"])
+@router.api_route("/api/demo/load-samples", methods=["GET", "POST"])
 def load_sample_proposals(background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """
     1-Click Demo Seed: Loads the 3 realistic sample PDFs from /sample_pdfs
