@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import re
 import json
 import httpx
-from __future__ import annotations
 from typing import Dict, Any, List, Tuple
+
 from app.agents.base import BaseAgent, logger
 from app.config import settings
 from app.schemas import NoveltyResult, SearchMatch
@@ -43,6 +45,7 @@ COMMON_REPLICATED_PATTERNS = [
     }
 ]
 
+
 class NoveltyAssessor(BaseAgent):
     """
     Stage 2 Agent:
@@ -54,7 +57,10 @@ class NoveltyAssessor(BaseAgent):
 
     def extract_methodology_and_keywords(self, text: str) -> Dict[str, Any]:
         # Extract section under methodology if labeled
-        meth_match = re.search(r"(?i)(?:methodology|proposed method|approach|system architecture)(?:[:\n\r]+)([\s\S]+?)(?=(?:results|expected results|evaluation|conclusion|discussion|\Z))", text)
+        meth_match = re.search(
+            r"(?i)(?:methodology|proposed method|approach|system architecture)(?:[:\n\r]+)([\s\S]+?)(?=(?:results|expected results|evaluation|conclusion|discussion|\Z))",
+            text
+        )
         if meth_match:
             methodology_text = meth_match.group(1).strip()[:600]
         else:
@@ -66,7 +72,11 @@ class NoveltyAssessor(BaseAgent):
 
         # Extract core technical nouns and phrases
         candidates = re.findall(r'\b(?:[A-Z][a-z]+|[A-Z]{2,}|[a-z]+(?:-[a-z]+)?)\b', methodology_text)
-        stopwords = {"the", "and", "for", "with", "this", "that", "from", "using", "which", "were", "been", "have", "will", "our", "used", "each", "data", "model", "paper", "study"}
+        stopwords = {
+            "the", "and", "for", "with", "this", "that", "from", "using", "which", 
+            "were", "been", "have", "will", "our", "used", "each", "data", "model", 
+            "paper", "study"
+        }
         keywords = [w for w in candidates if w.lower() not in stopwords and len(w) > 3]
 
         return {
@@ -90,9 +100,11 @@ class NoveltyAssessor(BaseAgent):
 
         return queries[:3]
 
-    def perform_search_and_similarity_check(self, title: str, text: str, queries: List[str]) -> Tuple[float, List[SearchMatch], str, str]:
+    def perform_search_and_similarity_check(
+        self, title: str, text: str, queries: List[str]
+    ) -> Tuple[float, List[SearchMatch], str, str]:
         matches: List[SearchMatch] = []
-        novelty_score = 9.2 # Default optimistic score for novel ideas
+        novelty_score = 9.2  # Default optimistic score for novel ideas
         explanation = "Proposal presents an original methodological synthesis with minimal direct duplicate overlap in indexed literature."
         verdict = "High Novelty - Original Idea"
 
