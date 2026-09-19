@@ -1,7 +1,8 @@
 import re
 import json
 import httpx
-from typing import Dict, Any, List
+from __future__ import annotations
+from typing import Dict, Any, List, Tuple
 from app.agents.base import BaseAgent, logger
 from app.config import settings
 from app.schemas import NoveltyResult, SearchMatch
