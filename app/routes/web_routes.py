@@ -13,6 +13,13 @@ from app.auth import get_current_user_optional
 from app.config import settings
 from app.routes.submission_routes import process_submission_task
 
+from fastapi.responses import RedirectResponse
+
+@app.get("/")
+async def root_redirect():
+    """Redirect root path directly to the main faculty dashboard."""
+    return RedirectResponse(url="/dashboard")
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
