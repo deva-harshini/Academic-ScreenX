@@ -13,13 +13,6 @@ from app.auth import get_current_user_optional
 from app.config import settings
 from app.routes.submission_routes import process_submission_task
 
-from fastapi.responses import RedirectResponse
-
-@app.get("/")
-async def root_redirect():
-    """Redirect root path directly to the main faculty dashboard."""
-    return RedirectResponse(url="/dashboard")
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
@@ -27,9 +20,8 @@ router = APIRouter(include_in_schema=False)
 
 @router.get("/", response_class=HTMLResponse)
 def index_view(request: Request, user: User = Depends(get_current_user_optional)):
-    if user:
-        return RedirectResponse(url="/dashboard", status_code=302)
-    return RedirectResponse(url="/login", status_code=302)
+    """Direct root path to the main faculty dashboard for fast preview and screening."""
+    return RedirectResponse(url="/dashboard", status_code=302)
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, user: User = Depends(get_current_user_optional)):

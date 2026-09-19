@@ -1,5 +1,13 @@
-from contextlib import asynccontextmanager
+import sys
+import os
 from pathlib import Path
+
+# Ensure project root is in sys.path for direct module import compatibility across local & Vercel
+ROOT_DIR = Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -61,3 +69,6 @@ async def global_exception_handler(request: Request, exc: Exception):
             content={"detail": "An internal server error occurred while processing the request."}
         )
     raise exc
+
+# Expose handler for Vercel Serverless / AWS Lambda execution
+handler = app

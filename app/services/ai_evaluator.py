@@ -7,7 +7,7 @@ for academic proposals, job applicant documents, and research papers (PDF and TX
 Architecture:
 1. Document Ingestion: Loads PDF (PyPDFLoader) or TXT (TextLoader).
 2. Semantic Chunking: RecursiveCharacterTextSplitter (chunk_size=500, chunk_overlap=50).
-3. Vector Indexing: Chroma vector store with OpenAIEmbeddings (or local fallback).
+3. Vector Indexing: InMemoryVectorStore / Chroma with OpenAIEmbeddings (or local fallback).
 4. RAG Retrieval Chain: ChatOpenAI (gpt-4o-mini) with structured prompt evaluation.
 5. Structured Output:
    - Match Status: "Qualified" | "Not Qualified" | "Needs Review"
@@ -23,12 +23,18 @@ import uuid
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
-# LangChain and vector store imports
+# LangChain core & document loaders
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
+from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.documents import Document
+
+try:
+    from langchain_core.vectorstores import InMemoryVectorStore
+    HAS_IN_MEMORY_STORE = True
+except ImportError:
+    HAS_IN_MEMORY_STORE = False
 
 try:
     from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -39,7 +45,7 @@ except ImportError:
 try:
     from langchain_community.vectorstores import Chroma
     HAS_CHROMA = True
-except ImportError:
+except (ImportError, Exception):
     HAS_CHROMA = False
 
 logger = logging.getLogger("AcademicScreenX.AIEvaluator")
@@ -71,7 +77,7 @@ def _load_document_chunks(file_path: str, chunk_size: int = 500, chunk_overlap: 
         loader = TextLoader(str(path), encoding="utf-8")
         docs = loader.load()
     else:
-        # Fallback raw loader
+        # Fallback loader
         try:
             loader = PyPDFLoader(str(path))
             docs = loader.load()
@@ -193,26 +199,33 @@ def evaluate_document(file_path: str, evaluation_criteria: Optional[str] = None)
     use_mock = os.getenv("USE_MOCK_LLM", "True").lower() in ("true", "1", "yes")
 
     # If mock mode or no API key, execute robust local RAG fallback
-    if not openai_key or use_mock or not HAS_OPENAI or not HAS_CHROMA:
+    if not openai_key or use_mock or not HAS_OPENAI:
         logger.info("Using local heuristic RAG evaluation engine (Offline/Mock Mode).")
         return _mock_heuristic_evaluation(chunks, criteria, file_path)
 
     # 3. Vector store indexing & OpenAI RAG chain
     try:
-        # Create ephemeral vector store in temp directory to guarantee isolation & serverless compatibility
-        temp_persist_dir = tempfile.mkdtemp(prefix="chroma_screenx_")
-        
         embeddings = OpenAIEmbeddings(
             openai_api_key=openai_key,
             model="text-embedding-3-small"
         )
         
-        vectorstore = Chroma.from_documents(
-            documents=chunks,
-            embedding=embeddings,
-            persist_directory=temp_persist_dir,
-            collection_name=f"eval_{uuid.uuid4().hex[:8]}"
-        )
+        # Use fast InMemoryVectorStore or Chroma
+        if HAS_IN_MEMORY_STORE:
+            vectorstore = InMemoryVectorStore.from_documents(
+                documents=chunks,
+                embedding=embeddings
+            )
+        elif HAS_CHROMA:
+            temp_persist_dir = tempfile.mkdtemp(prefix="chroma_screenx_")
+            vectorstore = Chroma.from_documents(
+                documents=chunks,
+                embedding=embeddings,
+                persist_directory=temp_persist_dir,
+                collection_name=f"eval_{uuid.uuid4().hex[:8]}"
+            )
+        else:
+            return _mock_heuristic_evaluation(chunks, criteria, file_path)
 
         retriever = vectorstore.as_retriever(
             search_type="similarity",
@@ -295,6 +308,6 @@ Return ONLY the JSON object. Do not include markdown code fences or extra text."
 
 if __name__ == "__main__":
     import sys
-    test_file = sys.argv[1] if len(sys.argv) > 1 else "sample_pdfs/proposal_approved_1.pdf"
+    test_file = sys.argv[1] if len(sys.argv) > 1 else "sample_pdfs/03_innovative_idea.pdf"
     res = evaluate_document(test_file)
     print(json.dumps(res, indent=2))
