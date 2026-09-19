@@ -18,10 +18,28 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 router = APIRouter(include_in_schema=False)
 
+def _render_dashboard(request: Request, user: User, db: Session):
+    """Helper to render dashboard template with context"""
+    return templates.TemplateResponse(
+        request=request,
+        name="dashboard.html",
+        context={
+            "user": user or {"name": "Dr. Eleanor Vance", "role": "faculty", "email": "faculty@university.edu"},
+            "app_name": settings.APP_NAME,
+            "app_version": settings.APP_VERSION,
+            "use_mock_llm": settings.USE_MOCK_LLM
+        }
+    )
+
 @router.get("/", response_class=HTMLResponse)
-def index_view(request: Request, user: User = Depends(get_current_user_optional)):
-    """Direct root path to the main faculty dashboard for fast preview and screening."""
-    return RedirectResponse(url="/dashboard", status_code=302)
+def index_view(request: Request, user: User = Depends(get_current_user_optional), db: Session = Depends(get_db)):
+    """Direct root path rendering the main faculty dashboard without redirects."""
+    return _render_dashboard(request, user, db)
+
+@router.get("/dashboard", response_class=HTMLResponse)
+def dashboard_page(request: Request, user: User = Depends(get_current_user_optional), db: Session = Depends(get_db)):
+    """Render main faculty dashboard."""
+    return _render_dashboard(request, user, db)
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, user: User = Depends(get_current_user_optional)):
@@ -34,20 +52,6 @@ def register_page(request: Request, user: User = Depends(get_current_user_option
     if user:
         return RedirectResponse(url="/dashboard", status_code=302)
     return templates.TemplateResponse(request=request, name="register.html", context={"app_name": settings.APP_NAME})
-
-@router.get("/dashboard", response_class=HTMLResponse)
-def dashboard_page(request: Request, user: User = Depends(get_current_user_optional), db: Session = Depends(get_db)):
-    # Fallback to demo faculty user if no active session for easy preview
-    return templates.TemplateResponse(
-        request=request,
-        name="dashboard.html",
-        context={
-            "user": user or {"name": "Dr. Eleanor Vance", "role": "faculty", "email": "faculty@university.edu"},
-            "app_name": settings.APP_NAME,
-            "app_version": settings.APP_VERSION,
-            "use_mock_llm": settings.USE_MOCK_LLM
-        }
-    )
 
 @router.get("/report/{submission_id}", response_class=HTMLResponse)
 def report_page(submission_id: int, request: Request, user: User = Depends(get_current_user_optional), db: Session = Depends(get_db)):
