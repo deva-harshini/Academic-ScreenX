@@ -1,16 +1,16 @@
-# 🎓 Academic-ScreenX - Complete Documentation Index
+# Academic-ScreenX
 
 > **Autonomous Multi-Agent Paper Screening Platform & AI-Powered RAG Document Evaluator for University Faculty & Academic Review Committees**
 
 ---
 
-## 🎯 What is Academic-ScreenX?
+## What is Academic-ScreenX?
 
-Academic-ScreenX is a full-stack, autonomous multi-agent paper screening and document evaluation platform that solves the **Faculty Review Bottleneck** by evaluating student project proposals (PDF & TXT) through a sequential 3-stage funnel and an integrated **AI RAG (Retrieval-Augmented Generation)** criteria evaluation layer:
+Academic-ScreenX is an autonomous multi-agent paper screening and document evaluation platform that solves the **Faculty Review Bottleneck** by evaluating student project proposals (PDF & TXT) through a sequential 3-stage funnel and an integrated **AI RAG (Retrieval-Augmented Generation)** criteria evaluation layer:
 - ✅ **Automated Structural Compliance Auditing**: Verifies strict word count ($250 \le W \le 500$) and detects mandatory academic sections (*Introduction, Methodology, Results, Conclusion*).
 - ✅ **Methodology Extraction & Novelty Assessment**: Generates targeted literature search queries and detects generic/saturated tutorial duplicates (e.g., standard MNIST CNNs, basic Kaggle Titanic trees, naive sentiment analysis).
 - ✅ **Technical Feasibility & Composite Scoring**: Evaluates dataset feasibility (*High / Moderate / Low*), computes peer score $S \in [1, 10]$, and writes a strict 3-sentence executive summary review.
-- ✅ **🧠 AI-Powered RAG Document Evaluation Layer**: LangChain vector indexing (`Chroma` + `OpenAIEmbeddings`) and retrieval chain (`ChatOpenAI` `gpt-4o-mini`) evaluating documents against customizable job/academic criteria, extracting **Match Status**, **Key Evidence Found**, and **Missing Requirements**.
+- ✅ **AI-Powered RAG Document Evaluation Layer**: LangChain vector indexing (`Chroma` + `OpenAIEmbeddings`) and retrieval chain (`ChatOpenAI` `gpt-4o-mini`) evaluating documents against customizable job/academic criteria, extracting **Match Status**, **Key Evidence Found**, and **Missing Requirements**.
 - ✅ **One-Click Faculty Triage**: Automatically categorizes proposals into `Approved for Faculty`, `Needs Revision`, and `Flagged for Low Novelty`.
 - ✅ **Clean Light-Mode Faculty Dashboard**: Real-time stats cards, batch drag-and-drop PDF/TXT dropzone, interactive data table with status filters, and instant evaluation dossier modal.
 - ✅ **Zero-Credit Mock Guardrails**: Default offline mock engine (`USE_MOCK_LLM=True`) runs without external API dependencies or costs, with instant support for live Tavily/OpenAI/Gemini keys.
@@ -18,16 +18,16 @@ Academic-ScreenX is a full-stack, autonomous multi-agent paper screening and doc
 
 ---
 
-## 📖 Documentation Structure
+## Documentation Structure
 
-### 🏁 **Start Here**
-1. **[Quick Start Guide](#-quick-start-guide)** ⭐ **START HERE**
+### **Start Here**
+1. **[Quick Start Guide](#-quick-start-guide)** 
    - Get running in 3 minutes
    - Virtual environment setup
    - Run multi-agent & RAG pipeline
    - Launch faculty dashboard
 
-### 📊 **Architecture & Funnel Design**
+### **Architecture & Funnel Design**
 2. **[3-Stage Multi-Agent Screening Funnel](#-3-stage-multi-agent-screening-funnel)**
    - Stage 1: Compliance Auditor
    - Stage 2: Novelty Assessor
@@ -41,14 +41,11 @@ Academic-ScreenX is a full-stack, autonomous multi-agent paper screening and doc
 
 4. **[API Endpoints & Database Schema](#-api-endpoints--database-schema)**
    - REST API specification
-   - SQLite / SQLAlchemy ORM models
+   - SQLite ORM models
    - JWT authentication & cookie session management
 
 5. **[Deployment Options](#-deployment-options)**
    - Vercel Serverless deployment
-   - Docker & Docker Compose
-   - Render / PaaS deployment
-   - Environment variables configuration
 
 6. **[Benchmark Test Suite & Verification](#-benchmark-test-suite--verification)**
    - Automated pytest suite
@@ -57,16 +54,16 @@ Academic-ScreenX is a full-stack, autonomous multi-agent paper screening and doc
 
 ---
 
-## 🗂️ Project & Code Structure
+## Project & Code Structure
 
-### **AI Services & RAG Evaluator Layer** (Created ✅)
+### **AI Services & RAG Evaluator Layer** 
 ```
 services/ & app/services/
 ├── __init__.py           ✅ Package exports & evaluate_document binding
 └── ai_evaluator.py       ✅ LangChain RAG pipeline (PyPDF/TextLoader, Chroma, OpenAIEmbeddings, ChatOpenAI)
 ```
 
-### **Multi-Agent Pipeline** (Created ✅)
+### **Multi-Agent Pipeline** 
 ```
 app/agents/
 ├── base.py            ✅ Base agent interface & structured logging
@@ -76,7 +73,7 @@ app/agents/
 └── pipeline.py        ✅ Sequential multi-agent orchestrator & RAG integration
 ```
 
-### **Backend & Core API** (Created ✅)
+### **Backend & Core API** 
 ```
 app/
 ├── auth.py            ✅ Password hashing (bcrypt) & JWT token session handling
@@ -90,7 +87,7 @@ app/
     └── web_routes.py         ✅ GET /, GET /login, GET /dashboard, GET /report/{id}, POST /demo/load-samples
 ```
 
-### **Frontend UI & Design System** (Created ✅)
+### **Frontend UI & Design System**
 ```
 app/
 ├── static/
@@ -106,7 +103,7 @@ app/
 
 ---
 
-## 🧠 AI-Powered RAG Document Evaluation Layer
+## AI-Powered RAG Document Evaluation Layer
 
 The RAG layer (`services/ai_evaluator.py`) ingests candidate documents (PDF or TXT), builds isolated vector embeddings, and performs targeted contextual retrieval to verify document alignment against job or academic criteria.
 
@@ -139,25 +136,9 @@ The RAG layer (`services/ai_evaluator.py`) ingests candidate documents (PDF or T
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Programmatic Python Usage
-
-```python
-from services.ai_evaluator import evaluate_document
-
-# Evaluate an uploaded proposal or candidate document
-result = evaluate_document(
-    file_path="uploads/my_proposal.pdf",
-    evaluation_criteria="Clear hypothesis, robust empirical methodology, novel contribution, and dataset feasibility."
-)
-
-print(result["Match Status"])         # e.g., "Qualified"
-print(result["Key Evidence Found"])   # ['Clear problem context...', 'Technical methodology...']
-print(result["Missing Requirements"]) # ['None. All core criteria satisfied.']
-```
-
 ---
 
-## 📊 3-Stage Multi-Agent Screening Funnel
+## 3-Stage Multi-Agent Screening Funnel
 
 ```
                        [ Uploaded Student PDF / TXT ]
@@ -201,6 +182,13 @@ print(result["Missing Requirements"]) # ['None. All core criteria satisfied.']
     │ Faculty Triage: Approved for Faculty | Needs Revision | Flagged  │
     └──────────────────────────────────────────────────────────────────┘
 ```
+---
+
+## Quick Start Guide
+
+Open at **[https://academic-screen-x.vercel.app/dashboard](https://academic-screen-x.vercel.app/dashboard)**.
+
+---
 
 ### Agent Roles & Evaluation Criteria
 
@@ -213,45 +201,8 @@ print(result["Missing Requirements"]) # ['None. All core criteria satisfied.']
 
 ---
 
-## 🚀 Quick Start Guide
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/deva-harshini/Academic-ScreenX.git
-cd Academic-ScreenX
-```
-
-### 2. Create and activate a virtual environment
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 3. Install dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Generate sample benchmark PDFs
-```bash
-python tests/generate_samples.py
-```
-
-### 5. Run automated test suite
-```bash
-pytest -v
-```
-
-### 6. Launch the local server
-```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-```
-
-Open your browser at **[http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard)**.
-
----
-
-## 🔑 Default Faculty Credentials
+## Default Faculty Credentials
 
 The application automatically seeds a default faculty committee account on startup:
 
@@ -265,46 +216,7 @@ The application automatically seeds a default faculty committee account on start
 
 ---
 
-## 🌐 Deployment Options
-
-### 1. Vercel Serverless (Recommended for Demo)
-Academic-ScreenX includes native Vercel Serverless support via `api/index.py` and modern Zero-Config `vercel.json`:
-1. Push this repository to GitHub.
-2. Import the repository in [Vercel Dashboard](https://vercel.com/new).
-3. Vercel automatically detects Python, packages the application, and deploys the serverless functions.
-
-### 2. Docker & Docker Compose
-```bash
-# Run with Docker Compose
-docker-compose up --build -d
-
-# Or build standalone container
-docker build -t academic-screenx .
-docker run -p 8000:8000 academic-screenx
-```
-
-### 3. Cloud PaaS (Render / Fly.io / Heroku)
-- **Render**: Connect repository and select `render.yaml` blueprint.
-- **Procfile**: Ready for Heroku/Fly.io deployments via `web: uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
-
----
-
-## ⚙️ Environment Configuration
-
-Copy `.env.example` to `.env` to customize settings:
-
-| Variable | Default | Purpose |
-| :--- | :--- | :--- |
-| `SECRET_KEY` | `academic-screenx-super-secure-secret-key-2026` | JWT secret for signing auth session tokens. |
-| `USE_MOCK_LLM` | `True` | Runs offline mock agent engine (zero token/credit costs). |
-| `TAVILY_API_KEY` | `""` | Optional live web search API key for Stage 2 novelty check. |
-| `OPENAI_API_KEY` | `""` | Optional OpenAI key for live LLM RAG evaluations (`gpt-4o-mini`). |
-| `GEMINI_API_KEY` | `""` | Optional Google Gemini key for live LLM evaluations. |
-| `DATABASE_URL` | *(Auto-detected)* | Defaults to local SQLite (`./academic_screenx.db`) or `/tmp` on Vercel. |
-
----
-
-## 🧪 Benchmark Test Suite & Verification
+## Benchmark Test Suite & Verification
 
 The project includes 3 realistic academic proposals in `/sample_pdfs` representing the triage funnel:
 
@@ -314,8 +226,3 @@ The project includes 3 realistic academic proposals in `/sample_pdfs` representi
 | **`02_copied_idea.pdf`** | Standard MNIST CNN tutorial replicate | ✓ 10.0 / 10 | ✗ 2.5 / 10 | 4.8 / 10 | **Qualified** | **Flagged (Low Novelty)** |
 | **`03_innovative_idea.pdf`** | Novel Neuromorphic HDC Edge MEMS architecture | ✓ 10.0 / 10 | ✓ 9.2 / 10 | 9.2 / 10 | **Qualified** | **Approved for Faculty** |
 
----
-
-## 📄 License
-
-MIT License. Designed and built for Academic Institutions, University Faculty, and Project Review Committees.
