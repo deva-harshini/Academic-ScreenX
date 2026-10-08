@@ -1,6 +1,5 @@
 // Academic-ScreenX Complete Inline Controller & Event Handlers
-
-let allSubmissions = [];
+window.currentSubmissions = window.currentSubmissions || [];
 let currentFilter = 'all';
 let currentSearch = '';
 let currentSort = 'date_desc';
@@ -26,8 +25,8 @@ function setupEventListeners() {
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
                 currentSearch = e.target.value.trim();
-                loadSubmissions();
-            }, 300);
+                applyCurrentFiltersAndRender();
+            }, 250);
         });
     }
 
@@ -35,7 +34,7 @@ function setupEventListeners() {
     if (sortSelect) {
         sortSelect.addEventListener('change', (e) => {
             currentSort = e.target.value;
-            loadSubmissions();
+            applyCurrentFiltersAndRender();
         });
     }
 
@@ -60,7 +59,7 @@ function setFilter(filter) {
             btn.className = 'filter-btn px-3 py-1.5 rounded-md font-medium transition text-slate-600 hover:text-slate-900';
         }
     });
-    loadSubmissions();
+    applyCurrentFiltersAndRender();
 }
 
 async function loadDemoSamples() {
@@ -93,8 +92,8 @@ async function loadDemoSamples() {
         const data = await res.json();
         showToast(data.message || 'Queued 3 sample papers for evaluation.', 'success');
         
-        await loadDashboardStats();
         await loadSubmissions();
+        await loadDashboardStats();
     } catch (err) {
         showToast(err.message || 'Error loading sample papers.', 'error');
     } finally {
@@ -106,32 +105,35 @@ async function loadDemoSamples() {
 }
 
 function setupDropZone() {
-    const dropZone = document.getElementById('dropzone') || document.getElementById('drop-zone');
-    if (!dropZone) return;
+    const dropzone = document.getElementById('dropzone');
+    if (!dropzone) return;
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropzone.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
 
     ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropZone.classList.add('border-slate-800', 'bg-slate-100');
+        dropzone.addEventListener(eventName, () => {
+            dropzone.classList.add('border-blue-500', 'bg-blue-50/50');
         }, false);
     });
 
     ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dropZone.classList.remove('border-slate-800', 'bg-slate-100');
+        dropzone.addEventListener(eventName, () => {
+            dropzone.classList.remove('border-blue-500', 'bg-blue-50/50');
         }, false);
     });
 
-    dropZone.addEventListener('drop', (e) => {
+    dropzone.addEventListener('drop', (e) => {
         const dt = e.dataTransfer;
-        const files = Array.from(dt.files).filter(f => f.name.toLowerCase().endsWith('.pdf') || f.name.toLowerCase().endsWith('.txt') || f.name.toLowerCase().endsWith('.md'));
-        if (files.length > 0) {
-            uploadFiles(files);
-        } else {
-            showToast('Please upload PDF, TXT, or MD proposal files.', 'warning');
+        const files = dt.files;
+        if (files && files.length > 0) {
+            uploadFiles(Array.from(files));
         }
     }, false);
 }
@@ -148,33 +150,112 @@ async function uploadFiles(files) {
         formData.append('files', file);
     });
 
-    const statusEl = document.getElementById('upload-status');
-    if (statusEl) statusEl.classList.remove('hidden');
+    showToast(`Uploading ${validFiles.length} file(s)...`, 'info');
 
     try {
-        const response = await fetch('/api/submissions/upload', {
+        const res = await fetch('/api/submissions/upload', {
             method: 'POST',
-            body: formData
+            body: formData,
+            credentials: 'same-origin'
         });
 
-        if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.detail || 'Upload failed');
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Upload failed.');
         }
 
-        const result = await response.json();
-        showToast(result.message || 'Upload accepted.', 'success');
-        
-        const fileInput = document.getElementById('file-input');
-        if (fileInput) fileInput.value = '';
+        const data = await res.json();
+        showToast(data.message || 'Files uploaded successfully.', 'success');
 
-        await loadDashboardStats();
         await loadSubmissions();
-    } catch (error) {
-        showToast(error.message, 'error');
-    } finally {
-        if (statusEl) statusEl.classList.add('hidden');
+        await loadDashboardStats();
+    } catch (e) {
+        showToast(e.message, 'error');
     }
+}
+
+function updateDashboard(fetchedItems) {
+    if (!Array.isArray(fetchedItems)) return;
+
+    // Master client-side map merging by unique ID
+    const map = new Map();
+    
+    // Seed with existing submissions
+    (window.currentSubmissions || []).forEach(item => {
+        if (item && item.id != null) map.set(item.id, item);
+    });
+
+    // Merge or update with newly fetched items
+    fetchedItems.forEach(item => {
+        if (item && item.id != null) {
+            map.set(item.id, item);
+        }
+    });
+
+    const merged = Array.from(map.values());
+    window.currentSubmissions = merged;
+
+    applyCurrentFiltersAndRender();
+    updateStatsCards(merged);
+}
+
+function applyCurrentFiltersAndRender() {
+    let list = Array.from(window.currentSubmissions || []);
+
+    // Apply sorting
+    list.sort((a, b) => {
+        if (currentSort === 'score_desc') return (b.overall_score || 0) - (a.overall_score || 0);
+        if (currentSort === 'score_asc') return (a.overall_score || 0) - (b.overall_score || 0);
+        if (currentSort === 'novelty_desc') return (b.novelty_score || 0) - (a.novelty_score || 0);
+        if (currentSort === 'date_asc') return new Date(a.uploaded_at || 0) - new Date(b.uploaded_at || 0);
+        return new Date(b.uploaded_at || 0) - new Date(a.uploaded_at || 0);
+    });
+
+    // Apply filter
+    if (currentFilter && currentFilter !== 'all') {
+        list = list.filter(s => (s.status || '').toLowerCase() === currentFilter.toLowerCase());
+    }
+
+    // Apply search
+    if (currentSearch) {
+        const q = currentSearch.toLowerCase();
+        list = list.filter(s => 
+            (s.title || '').toLowerCase().includes(q) ||
+            (s.student_name || '').toLowerCase().includes(q) ||
+            (s.pdf_filename || '').toLowerCase().includes(q)
+        );
+    }
+
+    renderSubmissionsTable(list);
+}
+
+function updateStatsCards(submissions) {
+    if (!Array.isArray(submissions)) return;
+
+    const total = submissions.length;
+    const approved = submissions.filter(s => s.status === 'approved').length;
+    const revision = submissions.filter(s => s.status === 'revision').length;
+    const flagged = submissions.filter(s => s.status === 'flagged').length;
+
+    const approvedPct = total > 0 ? Math.round((approved / total) * 100) : 0;
+    const flaggedPct = total > 0 ? Math.round((flagged / total) * 100) : 0;
+
+    const completed = submissions.filter(s => (s.processing_time_seconds || 0) > 0);
+    const avgTime = completed.length > 0 
+        ? (completed.reduce((acc, s) => acc + s.processing_time_seconds, 0) / completed.length).toFixed(1)
+        : '0.0';
+
+    const elTotal = document.getElementById('stat-total');
+    const elApproved = document.getElementById('stat-approved');
+    const elRevision = document.getElementById('stat-revision');
+    const elFlagged = document.getElementById('stat-flagged');
+    const elAvgTime = document.getElementById('stat-avg-time');
+
+    if (elTotal) elTotal.textContent = total;
+    if (elApproved) elApproved.textContent = `${approvedPct}% (${approved} papers)`;
+    if (elRevision) elRevision.textContent = `${revision} format defects`;
+    if (elFlagged) elFlagged.textContent = `${flaggedPct}% (${flagged} papers)`;
+    if (elAvgTime) elAvgTime.textContent = `${avgTime}s`;
 }
 
 async function loadDashboardStats() {
@@ -183,59 +264,32 @@ async function loadDashboardStats() {
         if (!res.ok) return;
         const stats = await res.json();
 
-        if (document.getElementById('stat-total')) {
-            document.getElementById('stat-total').textContent = stats.total_uploaded;
-        }
-        if (document.getElementById('stat-approved-pct')) {
-            document.getElementById('stat-approved-pct').textContent = `${stats.approved_pct}%`;
-        }
-        if (document.getElementById('stat-approved-count')) {
-            document.getElementById('stat-approved-count').textContent = `(${stats.approved_count} papers)`;
-        }
-        if (document.getElementById('stat-revision-count')) {
-            document.getElementById('stat-revision-count').textContent = stats.revision_count;
-        }
-        if (document.getElementById('stat-flagged-pct')) {
-            document.getElementById('stat-flagged-pct').textContent = `${stats.flagged_pct}%`;
-        }
-        if (document.getElementById('stat-flagged-count')) {
-            document.getElementById('stat-flagged-count').textContent = `(${stats.flagged_count} papers)`;
-        }
-        if (document.getElementById('stat-avg-time')) {
-            document.getElementById('stat-avg-time').textContent = `${stats.avg_processing_time}s`;
+        // If client already has master records, stats cards are kept unified via updateStatsCards
+        if (!window.currentSubmissions || window.currentSubmissions.length === 0) {
+            const elTotal = document.getElementById('stat-total');
+            const elApproved = document.getElementById('stat-approved');
+            const elRevision = document.getElementById('stat-revision');
+            const elFlagged = document.getElementById('stat-flagged');
+            const elAvgTime = document.getElementById('stat-avg-time');
+
+            if (elTotal) elTotal.textContent = stats.total_uploaded || 0;
+            if (elApproved) elApproved.textContent = `${Math.round(stats.approved_pct || 0)}% (${stats.approved_count || 0} papers)`;
+            if (elRevision) elRevision.textContent = `${stats.revision_count || 0} format defects`;
+            if (elFlagged) elFlagged.textContent = `${Math.round(stats.flagged_pct || 0)}% (${stats.flagged_count || 0} papers)`;
+            if (elAvgTime) elAvgTime.textContent = `${(stats.avg_processing_time || 0).toFixed(1)}s`;
         }
     } catch (e) {
-        console.error('Failed to load stats', e);
+        console.error('Error loading stats', e);
     }
 }
 
 async function loadSubmissions() {
-    const tableBody = document.getElementById('submissions-table-body');
-    const emptyState = document.getElementById('empty-state');
-    if (!tableBody) return;
-    
     try {
         let url = `/api/submissions/list?sort=${currentSort}`;
-        if (currentFilter !== 'all') {
-            url += `&status=${currentFilter}`;
-        }
-        if (currentSearch) {
-            url += `&q=${encodeURIComponent(currentSearch)}`;
-        }
-
         const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch submissions');
         const data = await res.json();
-        allSubmissions = data;
-
-        if (data.length === 0) {
-            tableBody.innerHTML = '';
-            if (emptyState) emptyState.classList.remove('hidden');
-            return;
-        }
-
-        if (emptyState) emptyState.classList.add('hidden');
-        renderSubmissionsTable(data);
+        updateDashboard(data);
     } catch (e) {
         console.error('Error loading submissions', e);
     }
@@ -391,28 +445,31 @@ function renderSubmissionsTable(submissions) {
 
 async function openReportModal(id) {
     const modal = document.getElementById('report-modal');
-    const modalContent = document.getElementById('modal-body-content');
+    const modalContent = document.getElementById('modal-content');
     if (!modal || !modalContent) return;
 
     modal.classList.remove('hidden');
-
     modalContent.innerHTML = `
-        <div class="py-16 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
-            <svg class="animate-spin h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24">
+        <div class="py-12 flex flex-col items-center justify-center space-y-3">
+            <svg class="animate-spin h-6 w-6 text-slate-800" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span>Loading evaluation dossier...</span>
+            <span class="text-xs font-semibold text-slate-600">Retrieving Dossier & Multi-Agent Scores...</span>
         </div>
     `;
 
     try {
         const res = await fetch(`/api/submissions/${id}/report`);
-        if (!res.ok) throw new Error('Could not retrieve evaluation report.');
-        const data = await res.json();
-        renderModalDetails(data);
-    } catch (err) {
-        modalContent.innerHTML = `<div class="p-6 text-center text-rose-600 text-xs font-semibold">${err.message}</div>`;
+        if (!res.ok) throw new Error('Could not load report dossier.');
+        const sub = await res.json();
+        renderReportModalContent(sub);
+    } catch (e) {
+        modalContent.innerHTML = `
+            <div class="p-6 text-center text-rose-600 text-xs">
+                Failed to load report: ${escapeHtml(e.message)}
+            </div>
+        `;
     }
 }
 
@@ -421,94 +478,82 @@ function closeReportModal() {
     if (modal) modal.classList.add('hidden');
 }
 
-document.addEventListener('click', (e) => {
-    const modal = document.getElementById('report-modal');
-    if (e.target === modal) {
-        closeReportModal();
-    }
-});
-
-function renderModalDetails(sub) {
-    const modalContent = document.getElementById('modal-body-content');
+function renderReportModalContent(sub) {
+    const modalContent = document.getElementById('modal-content');
     if (!modalContent) return;
 
-    let statusPill = '';
+    let statusBadge = '';
     if (sub.status === 'approved') {
-        statusPill = `<span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">✓ Approved for Faculty</span>`;
+        statusBadge = `<span class="px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-sm">✓ Approved for Faculty</span>`;
     } else if (sub.status === 'revision') {
-        statusPill = `<span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-sm">⚠ Needs Revision</span>`;
+        statusBadge = `<span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-sm">⚠ Needs Revision</span>`;
     } else if (sub.status === 'flagged') {
-        statusPill = `<span class="px-3 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">✗ Flagged for Low Novelty</span>`;
+        statusBadge = `<span class="px-3 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300 shadow-sm">✗ Flagged Low Novelty</span>`;
     } else {
-        statusPill = `<span class="px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">Evaluating</span>`;
+        statusBadge = `<span class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">Processing</span>`;
     }
 
-    const allSections = ['Introduction', 'Methodology', 'Results', 'Conclusion'];
+    const sections = ['Introduction', 'Methodology', 'Results', 'Conclusion'];
     const detected = sub.detected_sections || [];
-
-    const sectionChecklist = allSections.map(sec => {
-        const isPresent = detected.includes(sec);
+    const sectionChecklist = sections.map(sec => {
+        const isPresent = detected.some(d => d.toLowerCase() === sec.toLowerCase());
         return `
-            <div class="flex items-center justify-between p-2 rounded-md ${isPresent ? 'bg-emerald-50/50 border border-emerald-100' : 'bg-rose-50/50 border border-rose-100'} text-xs">
-                <span class="font-medium ${isPresent ? 'text-slate-800' : 'text-rose-900'}">${sec}</span>
-                <span class="${isPresent ? 'text-emerald-700 font-bold' : 'text-rose-600 font-bold'}">${isPresent ? '✓ Detected' : '✗ Missing'}</span>
+            <div class="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
+                <span class="text-slate-600 font-medium">${sec}</span>
+                <span class="text-xs font-bold ${isPresent ? 'text-emerald-600' : 'text-rose-500'}">
+                    ${isPresent ? '✓ Detected' : '✗ Missing'}
+                </span>
             </div>
         `;
     }).join('');
 
-    const matchesHtml = (sub.search_matches && sub.search_matches.length > 0)
-        ? sub.search_matches.map(m => `
-            <div class="p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5 text-xs">
-                <div class="flex items-center justify-between">
-                    <span class="font-bold text-slate-900">${escapeHtml(m.title)}</span>
-                    <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full ${m.similarity_level === 'High' ? 'bg-rose-100 text-rose-800' : 'bg-slate-200 text-slate-700'}">${m.similarity_level} Overlap</span>
-                </div>
-                <p class="text-[11px] text-slate-600 leading-relaxed">${escapeHtml(m.snippet)}</p>
-                <div class="text-[10px] text-slate-400 font-mono">${escapeHtml(m.source_type || 'Literature Index')}</div>
+    const searchMatches = sub.search_matches || [];
+    const matchesHtml = searchMatches.length > 0 ? searchMatches.map(m => `
+        <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
+            <div class="font-bold text-slate-900 flex items-center justify-between">
+                <span>${escapeHtml(m.title)}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">${m.similarity_level || 'Low'} Overlap</span>
             </div>
-        `).join('')
-        : '<p class="text-[11px] text-slate-500 italic p-3 bg-slate-50 rounded-lg border border-slate-200">No duplicate or saturated literature matches detected.</p>';
+            <p class="text-[11px] text-slate-600 leading-relaxed">${escapeHtml(m.snippet || '')}</p>
+        </div>
+    `).join('') : '<p class="text-xs text-slate-500 italic">No duplicate web or arXiv matches detected.</p>';
 
-    const ragEvidenceList = (sub.rag_evidence && sub.rag_evidence.length > 0)
-        ? sub.rag_evidence.map(e => `<li>${escapeHtml(e)}</li>`).join('')
-        : '<li class="italic text-slate-400">Baseline research proposal content extracted.</li>';
+    // RAG Evaluation breakdown
+    const ragEval = sub.rag_evaluation || {};
+    const ragStatus = sub.rag_match_status || ragEval['Match Status'] || 'PASS';
+    const ragStatusBadge = ragStatus === 'PASS' 
+        ? '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">✓ Criteria Verified (Pass)</span>'
+        : '<span class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">⚠ Requirements Gaps Found</span>';
 
-    const ragMissingList = (sub.rag_missing_requirements && sub.rag_missing_requirements.length > 0)
-        ? sub.rag_missing_requirements.map(m => `<li>${escapeHtml(m)}</li>`).join('')
-        : '<li class="text-emerald-700 font-semibold">None. All criteria satisfied.</li>';
+    const ragEvidenceList = (sub.rag_evidence || ragEval['Key Evidence Found'] || []).map(ev => `
+        <li class="leading-relaxed"><strong class="text-slate-700">${escapeHtml(ev.criterion || ev)}:</strong> ${escapeHtml(ev.evidence || '')}</li>
+    `).join('') || '<li class="text-slate-400 italic">No direct evidence extracted.</li>';
 
-    const ragStatusBadge = sub.rag_match_status === 'Qualified'
-        ? `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">Qualified</span>`
-        : sub.rag_match_status === 'Needs Review'
-        ? `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800">Needs Review</span>`
-        : `<span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">Not Qualified</span>`;
+    const ragMissingList = (sub.rag_missing_requirements || ragEval['Missing Requirements'] || []).map(miss => `
+        <li class="leading-relaxed text-amber-700">${escapeHtml(miss)}</li>
+    `).join('') || '<li class="text-emerald-700 font-medium">✓ No mandatory requirements missing.</li>';
 
     modalContent.innerHTML = `
         <div class="space-y-6">
-            <!-- Modal Header -->
-            <div class="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-                <div>
-                    <div class="flex items-center gap-2 mb-2">
-                        ${statusPill}
-                        <span class="text-xs text-slate-400 font-mono">${sub.processing_time_seconds || 0}s pipeline latency</span>
-                    </div>
-                    <h2 class="text-xl font-bold text-slate-900 leading-snug">${escapeHtml(sub.title)}</h2>
-                    <p class="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                        <span>Applicant: <strong class="text-slate-800">${escapeHtml(sub.student_name || 'Anonymous Applicant')}</strong></span>
+            
+            <!-- Header Summary Banner -->
+            <div class="flex items-start justify-between border-b border-slate-200 pb-4">
+                <div class="space-y-1">
+                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Candidate Proposal Dossier #${sub.id}</span>
+                    <h2 class="text-base font-bold text-slate-900">${escapeHtml(sub.title || sub.pdf_filename)}</h2>
+                    <div class="flex items-center gap-3 text-xs text-slate-500">
+                        <span>Author: <strong class="text-slate-800">${escapeHtml(sub.student_name || 'Unknown')}</strong></span>
                         <span>•</span>
-                        <span class="font-mono text-slate-400">${escapeHtml(sub.pdf_filename)}</span>
-                    </p>
+                        <span>File: <code class="text-slate-700">${escapeHtml(sub.pdf_filename)}</code></span>
+                    </div>
                 </div>
-                <div class="text-right shrink-0 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                    <span class="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Final Score</span>
-                    <span class="text-2xl font-black text-slate-900">${sub.overall_score ? sub.overall_score.toFixed(1) : '0.0'}<span class="text-xs text-slate-400 font-normal"> / 10</span></span>
-                </div>
+                <div>${statusBadge}</div>
             </div>
 
-            <!-- 3-Sentence Executive Review -->
-            <div class="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">Stage 3 Executive Review (3 Sentences)</span>
-                <p class="text-xs text-slate-800 leading-relaxed font-medium">
+            <!-- Stage 3 Executive Review -->
+            <div class="p-4 rounded-xl bg-slate-900 text-white space-y-2 shadow-sm">
+                <span class="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">Stage 3 Executive Review (3 Sentences)</span>
+                <p class="text-xs text-slate-100 leading-relaxed font-medium">
                     "${escapeHtml(sub.summary || 'Summary pending.')}"
                 </p>
             </div>
@@ -545,10 +590,10 @@ function renderModalDetails(sub) {
                 <div class="p-4 rounded-xl bg-white border border-slate-200 space-y-2.5 shadow-sm">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2">
                         <span class="text-[11px] font-bold text-slate-700 uppercase">Stage 1: Compliance</span>
-                        <span class="text-xs font-bold text-slate-900">${sub.compliance_score.toFixed(1)} / 10</span>
+                        <span class="text-xs font-bold text-slate-900">${(sub.compliance_score || 0).toFixed(1)} / 10</span>
                     </div>
                     <div class="text-[11px] text-slate-600">
-                        Word Count: <strong class="text-slate-900">${sub.word_count}</strong> words <br>
+                        Word Count: <strong class="text-slate-900">${sub.word_count || 0}</strong> words <br>
                         <span class="text-slate-400">(Required: 250–500 words)</span>
                     </div>
                     <div class="space-y-1.5 pt-1">
@@ -561,7 +606,7 @@ function renderModalDetails(sub) {
                 <div class="p-4 rounded-xl bg-white border border-slate-200 space-y-2.5 shadow-sm">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2">
                         <span class="text-[11px] font-bold text-slate-700 uppercase">Stage 2: Novelty</span>
-                        <span class="text-xs font-bold text-slate-900">${sub.novelty_score.toFixed(1)} / 10</span>
+                        <span class="text-xs font-bold text-slate-900">${(sub.novelty_score || 0).toFixed(1)} / 10</span>
                     </div>
                     <p class="text-xs font-semibold text-slate-800">${escapeHtml(sub.novelty_verdict || '')}</p>
                     <div class="space-y-1.5 pt-1 max-h-52 overflow-y-auto">
@@ -573,7 +618,7 @@ function renderModalDetails(sub) {
                 <div class="p-4 rounded-xl bg-white border border-slate-200 space-y-2.5 shadow-sm">
                     <div class="flex items-center justify-between border-b border-slate-100 pb-2">
                         <span class="text-[11px] font-bold text-slate-700 uppercase">Stage 3: Critic</span>
-                        <span class="text-xs font-bold text-slate-900">${sub.overall_score.toFixed(1)} / 10</span>
+                        <span class="text-xs font-bold text-slate-900">${(sub.overall_score || 0).toFixed(1)} / 10</span>
                     </div>
                     <div class="text-[11px] text-slate-600">
                         Dataset Feasibility: <strong class="text-slate-900">${sub.dataset_feasibility || 'Moderate'}</strong>
@@ -606,10 +651,10 @@ function renderModalDetails(sub) {
 function startPolling() {
     if (pollingTimer) clearInterval(pollingTimer);
     pollingTimer = setInterval(async () => {
-        const processingItems = document.querySelectorAll('.pulse-subtle');
-        if (processingItems.length > 0) {
-            loadDashboardStats();
-            loadSubmissions();
+        const processingItems = (window.currentSubmissions || []).some(s => s.status === 'processing' || s.status === 'pending');
+        if (processingItems || document.querySelectorAll('.pulse-subtle').length > 0) {
+            await loadSubmissions();
+            await loadDashboardStats();
         }
     }, 2500);
 }
@@ -620,8 +665,14 @@ async function deleteSubmission(id) {
         const res = await fetch(`/api/submissions/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Could not delete submission.');
         showToast('Submission deleted successfully.', 'success');
-        loadDashboardStats();
-        loadSubmissions();
+        
+        // Remove locally immediately to avoid UI delay
+        window.currentSubmissions = (window.currentSubmissions || []).filter(s => s.id !== id);
+        applyCurrentFiltersAndRender();
+        updateStatsCards(window.currentSubmissions);
+
+        await loadSubmissions();
+        await loadDashboardStats();
     } catch (e) {
         showToast(e.message, 'error');
     }

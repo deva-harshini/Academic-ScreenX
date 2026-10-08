@@ -46,7 +46,6 @@ We successfully replicate the standard convolutional network pipeline for digit 
 def run_performance_benchmark(iterations: int = 10):
     print("STARTING ACADEMIC-SCREENX PIPELINE BENCHMARK")
     print(f"Executing {iterations} rounds across {len(TEST_ABSTRACTS)} test profiles...")
-    print("=" * 60)
 
     latencies: List[float] = []
     triage_counts: Dict[str, int] = {"Approved": 0, "Needs Revision": 0, "Flagged": 0}
@@ -84,9 +83,8 @@ def run_performance_benchmark(iterations: int = 10):
     max_latency = max(latencies)
     throughput = total_processed / total_time
 
-    print("\n" + "=" * 60)
+    print("\n")
     print("BENCHMARK EVALUATION RESULTS")
-    print("=" * 60)
     print(f"Total Abstracts Processed  : {total_processed}")
     print(f"Total Execution Time       : {total_time:.3f} seconds")
     print(f"Average Processing Latency : {avg_latency * 1000:.2f} ms per abstract")
