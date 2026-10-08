@@ -107,4 +107,82 @@ class MultiAgentPipeline:
             )
 
 # Singleton pipeline instance
+
+    def run_pipeline(self, title: str, extracted_text: str, student_name: str = "Student Researcher") -> Dict[str, Any]:
+        import re
+        start_time = time.time()
+        
+        # Build stage 1 context
+        words = re.findall(r'\b\w+\b', extracted_text)
+        word_count = len(words)
+        is_word_count_valid = (250 <= word_count <= 500)
+        detected_sections, missing_sections = self.stage1_compliance.check_sections(extracted_text)
+        
+        # Word count scoring
+        if is_word_count_valid:
+            wc_score = 4.0
+        elif 200 <= word_count < 250 or 500 < word_count <= 550:
+            wc_score = 2.5
+        elif 100 <= word_count < 200 or 550 < word_count <= 700:
+            wc_score = 1.0
+        else:
+            wc_score = 0.0
+
+        sec_score = len(detected_sections) * 1.5
+        compliance_score = round(wc_score + sec_score, 1)
+        passed = (is_word_count_valid and len(missing_sections) == 0)
+        
+        feedback_parts = []
+        if is_word_count_valid:
+            feedback_parts.append(f"✓ Word count is valid ({word_count} words).")
+        else:
+            feedback_parts.append(f"✗ Word count invalid ({word_count} words; target: 250-500).")
+        if not missing_sections:
+            feedback_parts.append("✓ All mandatory sections present.")
+        else:
+            feedback_parts.append(f"✗ Missing sections: {', '.join(missing_sections)}.")
+            
+        stage1_out = {
+            "stage": 1,
+            "stage_name": "Compliance Auditor",
+            "passed": passed,
+            "word_count": word_count,
+            "is_word_count_valid": is_word_count_valid,
+            "detected_sections": detected_sections,
+            "missing_sections": missing_sections,
+            "compliance_score": compliance_score,
+            "feedback": " ".join(feedback_parts),
+            "extracted_text": extracted_text,
+            "title": title,
+            "student_name": student_name
+        }
+
+        context = {
+            "compliance": stage1_out,
+            "fallback_title": title
+        }
+
+        # Stage 2: Novelty Assessor
+        stage2_out = self.stage2_novelty.evaluate(context)
+        context["novelty"] = stage2_out
+
+        # Stage 3: Technical Critic
+        stage3_out = self.stage3_critic.evaluate(context)
+        context["critic"] = stage3_out
+
+        elapsed_time = round(time.time() - start_time, 4)
+        triage_status = stage3_out.get("recommendation", "Needs Revision")
+        final_status = stage3_out.get("final_status", "revision")
+
+        return {
+            "title": title,
+            "student_name": student_name,
+            "triage_status": triage_status,
+            "final_status": final_status,
+            "compliance": stage1_out,
+            "novelty": stage2_out,
+            "critic": stage3_out,
+            "processing_time_seconds": elapsed_time
+        }
+
 pipeline_engine = MultiAgentPipeline()
